@@ -1,0 +1,58 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  width: 320px;
+  background: #f5f8f7;
+  color: #183e36;
+  font:
+    14px/1.7 system-ui,
+    "Microsoft YaHei",
+    sans-serif;
+}
+main {
+  padding: 28px;
+}
+.wordmark {
+  font-size: 19px;
+  font-weight: 700;
+}
+.wordmark b {
+  font-size: 10px;
+  background: #d7ece5;
+  padding: 4px 6px;
+  border-radius: 5px;
+  color: #137661;
+}
+h1 {
+  font-size: 26px;
+  line-height: 1.4;
+  letter-spacing: -1px;
+}
+p {
+  color: #6b7b77;
+}
+button {
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #157a64;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+}
+a {
+  display: block;
+  text-align: center;
+  color: #157a64;
+  margin: 14px;
+}
+small {
+  display: block;
+  border-top: 1px solid #dde7e2;
+  padding-top: 14px;
+  color: #7d8a86;
+  font-size: 11px;
+}

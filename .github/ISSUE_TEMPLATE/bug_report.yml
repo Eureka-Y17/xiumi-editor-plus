@@ -1,0 +1,24 @@
+name: 问题反馈
+description: 报告可复现的操作或适配问题
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: 浏览器与扩展版本
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 出现位置
+      options:
+        - 本地演示
+        - 真实秀米只读检查
+        - 安装或构建
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤、期望与实际结果
+      description: 请勿提交私人稿件、付费模板或登录信息。
+    validations:
+      required: true
