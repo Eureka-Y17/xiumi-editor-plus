@@ -19,7 +19,7 @@ $env:XEP_BROWSER_EXECUTABLE = 'C:\Program Files (x86)\Microsoft\Edge\Application
 npm run test:e2e
 ```
 
-CI 默认使用 Playwright Chromium；精确依赖版本由 lockfile 固定。CI 结果以仓库 Actions 对应提交为准。
+CI 固定 Ubuntu 24.04，使用 Playwright Chromium；精确依赖版本由 lockfile 固定。CI 结果以仓库 Actions 对应提交为准。首次云端运行发现浮动的 ubuntu-latest 已升级到 Playwright 1.58 不支持的系统版本，现已固定运行器版本。
 
 ## 测试页面与截图的边界
 
