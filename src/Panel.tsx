@@ -22,6 +22,7 @@ import {
 import { EditorAdapter } from "./adapter";
 import { kindNames, type Command, type ComponentNode } from "./model";
 import { browser } from "wxt/browser";
+import { PropertyEditor } from "./PropertyEditor";
 export function Panel({
   adapter,
   onClose,
@@ -376,7 +377,7 @@ export function Panel({
             onClick={() => setTab("properties")}
           >
             <MousePointer2 size={14} />
-            组件属性
+            颜色与文字
           </button>
         </div>
         <div className="panel-scroll">
@@ -430,6 +431,12 @@ export function Panel({
                       ? "仅检查页面可见结构，不代表秀米内部组件模型。"
                       : "尺寸与样式由原容器保留。图片交换仅更换素材及替代文字。"}
                   </p>
+                  <PropertyEditor
+                    key={selected}
+                    adapter={adapter}
+                    id={selected!}
+                    onChange={run}
+                  />
                 </>
               ) : (
                 <div className="empty">选择组件后，在这里查看属性。</div>

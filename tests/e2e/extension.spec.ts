@@ -107,6 +107,42 @@ test("安装真实扩展并验证演示、面板与只读保护", async () => {
       page.getByText("已导入图文 · 编辑不会影响秀米原稿"),
     ).toBeVisible();
     await expect(page.locator("article img")).toHaveCount(2);
+    await page.locator(".node").first().click();
+    await page.getByRole("button", { name: "颜色与文字", exact: true }).click();
+    await page.getByRole("textbox", { name: "颜色值" }).fill("#e1f0e5");
+    await page.getByRole("button", { name: "应用颜色", exact: true }).click();
+    await expect(page.locator("article > section")).toHaveCSS(
+      "background-color",
+      "rgb(225, 240, 229)",
+    );
+    await page.getByRole("button", { name: "撤销", exact: true }).click();
+    await expect(page.locator("article > section")).toHaveCSS(
+      "background-color",
+      "rgb(249, 245, 225)",
+    );
+    await page.getByRole("button", { name: "重做", exact: true }).click();
+    await expect(page.locator("article > section")).toHaveCSS(
+      "background-color",
+      "rgb(225, 240, 229)",
+    );
+    await page.getByRole("button", { name: /组件结构/ }).click();
+    await page
+      .locator(".node")
+      .filter({ hasText: /^推荐语：/ })
+      .click();
+    await page.getByRole("button", { name: "颜色与文字", exact: true }).click();
+    await page
+      .getByRole("textbox", { name: "段落文字" })
+      .fill("推荐语：读一本好书，遇见新的世界。");
+    await page.getByRole("button", { name: "应用文字", exact: true }).click();
+    await expect(page.locator("article p")).toHaveText(
+      "推荐语：读一本好书，遇见新的世界。",
+    );
+    await page.screenshot({
+      path: "docs/screenshots/properties.png",
+      fullPage: true,
+    });
+    await page.getByRole("button", { name: /组件结构/ }).click();
     await page.locator(".node").filter({ hasText: "书封一" }).click();
     await page
       .getByRole("button", { name: "与另一张图片交换", exact: true })
@@ -182,7 +218,7 @@ test("安装真实扩展并验证演示、面板与只读保护", async () => {
     ).toHaveCount(1);
     await expect(
       page.locator(".node").filter({ hasText: "第二本书" }),
-    ).toHaveCount(3);
+    ).toHaveCount(2); // Visible heading and cover; the transparent shell is omitted.
     await expect(
       page.getByText("自动找到候选区域，请核对是否包含整篇推文。"),
     ).toBeVisible();
@@ -207,6 +243,63 @@ test("安装真实扩展并验证演示、面板与只读保护", async () => {
       .click();
     await page.keyboard.press("Escape");
     await expect(page.locator(".region-picker-hint")).toHaveCount(0);
+    await page.route("https://xiumi.us/native-fixture", (route) =>
+      route.fulfill({
+        contentType: "text/html; charset=utf-8",
+        body: '<div tn-editing-desk><article class="tn-paper-document-root" style="width:500px;min-height:400px"><div class="tn-page-container"><section class="tn-page"><p>非活动旧页</p></section></div><div class="tn-page-container active"><div class="tn-page-inst"><section class="tn-page"><div tn-comp-role="layer"><div><div></div><div style="display:none"><p>隐藏副本</p></div><div><p id="native-target">原生段落</p><p>第二段</p></div></div></div></section></div></div></article></div>',
+      }),
+    );
+    await page.goto("https://xiumi.us/native-fixture");
+    await page.evaluate(() => {
+      const w = window as unknown as Record<string, unknown>;
+      w.jQuery = (el: Element) => el;
+      w.angular = {
+        element: () => ({
+          controller: (name: string) =>
+            name === "tnEditingDesk"
+              ? {
+                  selectCellOrComp: (el: HTMLElement) => {
+                    document.documentElement.dataset.nativeSelected = el.id;
+                  },
+                }
+              : undefined,
+        }),
+      };
+    });
+    const originalNative = await page.locator("article").innerHTML();
+    await page.getByRole("button", { name: /秀米 Plus/ }).click();
+    await expect(page.locator(".tree-row")).toHaveCount(2);
+    await page
+      .locator(".node")
+      .filter({ hasText: /^原生段落$/ })
+      .click();
+    await expect(page.locator("html")).not.toHaveAttribute(
+      "data-native-selected",
+    );
+    const targetBox = await page.locator("#native-target").boundingBox();
+    const highlightBox = await page.locator(".selection-overlay").boundingBox();
+    expect(highlightBox!.width).toBeCloseTo(targetBox!.width, 0);
+    expect(highlightBox!.height).toBeCloseTo(targetBox!.height, 0);
+    expect(await page.locator("article").innerHTML()).toBe(originalNative);
+    const workspacePromise = context.waitForEvent("page");
+    await page
+      .getByRole("button", { name: "导入推文精修 ↗", exact: true })
+      .click();
+    const workspace = await workspacePromise;
+    await workspace.getByRole("textbox", { name: "粘贴秀米富文本" }).click();
+    await workspace.keyboard.press(
+      process.platform === "darwin" ? "Meta+V" : "Control+V",
+    );
+    await workspace
+      .getByRole("button", { name: "复制并回到秀米", exact: true })
+      .click();
+    await expect(
+      page.getByText(
+        "精修内容已复制。请按秀米原生流程粘贴；助手不会自动覆盖或保存原稿。",
+      ),
+    ).toBeVisible();
+    expect(await page.locator("article").innerHTML()).toBe(originalNative);
+    await workspace.close();
   } finally {
     await context.close();
   }

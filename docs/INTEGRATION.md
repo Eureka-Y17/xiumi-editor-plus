@@ -28,3 +28,5 @@ editor.undo();
 三类常用调用：`tree()` 看结构；`element(id)` 选择元素；`capability(id, action)` 检查后 `execute(id, action)` 执行。图片交换单独用 `swap(firstId, secondId)`；错误抛出可读说明，可在界面中直接显示。
 
 `demo` 只供自有静态内容，不是解除真实秀米限制的开关。不要在秀米正文上使用；HTML 快照无法保留框架文档模型或原生事件。真实保存适配需要独立验证后增加实现。本版不提供公开网络 API、网页全局对象或远程执行接口。
+
+属性精修仍只需适配器调用：先检查 `propertyCapability(id, 'backgroundColor')`，允许后调用 `setColor(id, 'backgroundColor', '#f9f5e1')`；文字使用 `text(id)` 和 `setText(id, value)`，统一通过 `undo()` 恢复。原生选中桥接实测失败已暂停，不提供未经验证的原稿修改接口。

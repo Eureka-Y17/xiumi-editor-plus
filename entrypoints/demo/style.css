@@ -1,6 +1,7 @@
 * {
   box-sizing: border-box;
 }
+.export-actions button:disabled{opacity:.4;cursor:not-allowed}
 .import-launch {
   background: #237b60;
   color: white;

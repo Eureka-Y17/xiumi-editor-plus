@@ -1,9 +1,15 @@
 import type { Capability, Command, ComponentNode, Kind } from "./model";
+import {
+  hasBackground,
+  styleOf,
+  replaceParagraphText,
+  textRuns,
+} from "./appearance";
 
 const blocked =
   "svg,iframe,video,audio,canvas,script,object,embed,[data-xep-special]";
 const candidates =
-  "section,div,p,h1,h2,h3,h4,blockquote,img,ul,ol,figure,svg,iframe,video,table";
+  "section,div,p,h1,h2,h3,h4,blockquote,img,ul,ol,li,figure,svg,iframe,video,table,span,strong,em,b,i,a,font";
 export class EditorAdapter {
   private ids = new WeakMap<Element, string>();
   private elements = new Map<string, HTMLElement>();
@@ -41,28 +47,85 @@ export class EditorAdapter {
         el.hidden
       )
         return [];
+      if (this.mode === "xiumi-readonly") {
+        const style = styleOf(el);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          el.matches(
+            '.op-dock,[role="toolbar"],.tn-operator-depot,.tn-out-comp-edit-op-depot',
+          )
+        )
+          return [];
+        // These are editor/page shells, not article components. Retain their descendants.
+        if (
+          el.matches(
+            '.tn-page-container,.tn-page-inst,.tn-page,[tn-comp-role="cube"],[tn-comp-role="page"],[tn-comp-role="layer"]',
+          )
+        )
+          return Array.from(el.children).flatMap((c) =>
+            walk(c as HTMLElement, parentId, depth + 1),
+          );
+        const ownText = Array.from(el.childNodes).some(
+          (n) => n.nodeType === 3 && !!n.textContent?.trim(),
+        );
+        const decorated =
+          hasBackground(el) ||
+          [
+            style.borderTopWidth,
+            style.borderRightWidth,
+            style.borderBottomWidth,
+            style.borderLeftWidth,
+            style.paddingTop,
+            style.paddingRight,
+            style.paddingBottom,
+            style.paddingLeft,
+            style.marginTop,
+            style.marginRight,
+            style.marginBottom,
+            style.marginLeft,
+          ].some((v) => parseFloat(v) > 0) ||
+          /flex|grid/.test(style.display) ||
+          !!el.dataset.label;
+        if (
+          el.matches("div,section,span") &&
+          !ownText &&
+          !decorated &&
+          !el.matches(blocked)
+        )
+          return Array.from(el.children).flatMap((c) =>
+            walk(c as HTMLElement, parentId, depth + 1),
+          );
+      }
       if (!el.matches(candidates))
         return Array.from(el.children).flatMap((c) =>
           walk(c as HTMLElement, parentId, depth + 1),
         );
       const id = this.id(el);
       this.elements.set(id, el);
-      const kind: Kind =
-        el.matches(blocked) || !!el.querySelector(blocked)
-          ? "special"
-          : el.tagName === "IMG"
-            ? "image"
-            : el.style.backgroundImage
+      const kind: Kind = el.matches(blocked)
+        ? "special"
+        : el.tagName === "IMG"
+          ? "image"
+          : el.matches("p,h1,h2,h3,h4,blockquote,span,strong,em,b,i,a,font")
+            ? "text"
+            : hasBackground(el)
               ? "background"
-              : el.matches("p,h1,h2,h3,h4,blockquote")
-                ? "text"
+              : el.querySelector(blocked)
+                ? "special"
                 : "layout";
       const label =
         el.dataset.label ||
         (kind === "image"
           ? (el as HTMLImageElement).alt
           : el.textContent?.trim().slice(0, 24)) ||
-        "未命名组件";
+        (kind === "background"
+          ? "背景板"
+          : kind === "image"
+            ? "图片"
+            : kind === "text"
+              ? "文字"
+              : "布局");
       return [
         {
           id,
@@ -107,7 +170,7 @@ export class EditorAdapter {
       this.mode !== "xiumi-readonly" && this.root.innerHTML !== this.baseline
     );
   }
-  private editable(el?: HTMLElement): Capability {
+  private editable(el?: HTMLElement, propertyOnly = false): Capability {
     if (this.mode === "xiumi-readonly")
       return {
         allowed: false,
@@ -120,7 +183,11 @@ export class EditorAdapter {
         allowed: false,
         reason: "内容已被外部修改，请重新载入演示以避免覆盖。",
       };
-    if (el.matches(blocked) || el.querySelector(blocked) || el.closest(blocked))
+    if (
+      el.matches(blocked) ||
+      (!propertyOnly && el.querySelector(blocked)) ||
+      el.closest(blocked)
+    )
       return { allowed: false, reason: "特殊或交互组件不支持修改。" };
     return { allowed: true, reason: "" };
   }
@@ -171,6 +238,70 @@ export class EditorAdapter {
       this.revision++;
       this.root.dispatchEvent(new CustomEvent("xep:change", { bubbles: true }));
     }
+  }
+  appearance(id: string) {
+    const el = this.element(id);
+    if (!el) return null;
+    const style = styleOf(el);
+    return {
+      color: style.color,
+      backgroundColor: style.backgroundColor,
+      backgroundImage: style.backgroundImage,
+      borderColor: style.borderColor,
+      hasBackground: hasBackground(el),
+    };
+  }
+  propertyCapability(
+    id: string,
+    property: "color" | "backgroundColor" | "borderColor" | "text",
+  ): Capability {
+    const el = this.element(id);
+    const cap = this.editable(el, property !== "text");
+    if (!cap.allowed || !el) return cap;
+    if (
+      property === "text" &&
+      (!el.matches("p,h1,h2,h3,h4,blockquote,span,strong,em,b,i,a,font,li") ||
+        el.querySelector("img,section,div,ul,ol,table,video,audio,svg"))
+    )
+      return {
+        allowed: false,
+        reason:
+          "请选择文字段或具体文字节点，不能替换包含图片和布局的整块内容。",
+      };
+    return cap;
+  }
+  setColor(
+    id: string,
+    property: "color" | "backgroundColor" | "borderColor",
+    color: string,
+  ) {
+    const cap = this.propertyCapability(id, property);
+    if (!cap.allowed) throw new Error(cap.reason);
+    if (
+      !["color", "backgroundColor", "borderColor"].includes(property) ||
+      !/^#[\da-f]{6}$/i.test(color)
+    )
+      throw new Error("请选择有效的六位十六进制颜色。");
+    this.transact(() => {
+      this.element(id)!.style[property] = color;
+    });
+  }
+  clearBackgroundImage(id: string) {
+    const cap = this.propertyCapability(id, "backgroundColor");
+    if (!cap.allowed) throw new Error(cap.reason);
+    this.transact(() => {
+      this.element(id)!.style.backgroundImage = "none";
+    });
+  }
+  text(id: string) {
+    const el = this.element(id);
+    return el ? textRuns(el).text : "";
+  }
+  setText(id: string, value: string) {
+    const cap = this.propertyCapability(id, "text");
+    if (!cap.allowed) throw new Error(cap.reason);
+    if (value.length > 100_000) throw new Error("单段文字过长，请分段编辑。");
+    this.transact(() => replaceParagraphText(this.element(id)!, value));
   }
   execute(id: string, command: Command) {
     const cap = this.capability(id, command);

@@ -20,6 +20,7 @@ import {
   prepareImportedRoot,
   type ImportedArticle,
 } from "../../src/importer";
+import { browser } from "wxt/browser";
 function Demo() {
   const [index, setIndex] = useState(0),
     [generation, setGeneration] = useState(0),
@@ -32,6 +33,13 @@ function Demo() {
     new URLSearchParams(location.search).has("import"),
   );
   const [exportMessage, setExportMessage] = useState("");
+  const [hasSource, setHasSource] = useState(false);
+  useEffect(() => {
+    void browser.runtime
+      .sendMessage({ type: "xep:source-status" })
+      .then((result) => setHasSource(!!result?.ok))
+      .catch(() => {});
+  }, []);
   const html = useMemo(
     () => ({ __html: imported?.html ?? fixtures[index].html }),
     [index, generation, imported],
@@ -45,7 +53,7 @@ function Demo() {
     }
   }, [index, generation, imported]);
   async function copyArticle() {
-    if (!article.current) return;
+    if (!article.current) return false;
     const content = exportArticle(article.current);
     try {
       await navigator.clipboard.write([
@@ -57,10 +65,23 @@ function Demo() {
       setExportMessage(
         "已复制完整富文本，请到公众号正文编辑器 Ctrl+V，并检查手机预览。",
       );
+      return true;
     } catch {
       setExportMessage(
         "浏览器未允许复制，请先下载 HTML 备份，或检查浏览器的剪贴板设置。",
       );
+      return false;
+    }
+  }
+  async function returnToXiumi() {
+    if (!(await copyArticle())) return;
+    try {
+      const result = await browser.runtime.sendMessage({
+        type: "xep:return-source",
+      });
+      setExportMessage(result.message);
+    } catch {
+      setExportMessage("内容已复制，请手动回到秀米原稿使用原生粘贴流程。");
     }
   }
   function downloadArticle() {
@@ -242,6 +263,17 @@ function Demo() {
             <div className="export-actions">
               <button onClick={copyArticle}>复制到公众号</button>
               <button onClick={downloadArticle}>下载 HTML 备份</button>
+              <button
+                disabled={!hasSource}
+                title={
+                  hasSource
+                    ? "复制并切回来源标签，不会自动粘贴、覆盖或保存。"
+                    : "请从秀米页面的导入推文精修入口打开工作台。"
+                }
+                onClick={returnToXiumi}
+              >
+                复制并回到秀米
+              </button>
               <p role="status">
                 {exportMessage ||
                   "先核对图文，再复制到公众号；刷新页面会丢失未备份的修改。"}

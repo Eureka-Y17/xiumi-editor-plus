@@ -23,6 +23,6 @@ export const kindNames: Record<Kind, string> = {
   layout: "布局",
   text: "文字",
   image: "图片",
-  background: "背景布局",
+  background: "背景板",
   special: "特殊组件",
 };

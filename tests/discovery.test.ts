@@ -48,3 +48,10 @@ it("没有候选时不回退为整页，也不会选中隐藏编辑框", () => {
   dimensions();
   expect(discoverRegion(document)).toBeNull();
 });
+
+it("秀米多页外壳只检查活动页，不把加载器与非活动页当正文", () => {
+  document.body.innerHTML =
+    '<article class="tn-paper-document-root"><div class="tn-page-container"><section class="tn-page"><p>旧页</p></section></div><div class="tn-page-container active"><div class="tn-page-inst"><section class="tn-page" id="current"><p>当前正文</p></section></div></div></article>';
+  dimensions();
+  expect(discoverRegion(document)!.root.id).toBe("current");
+});

@@ -142,6 +142,27 @@ export default defineContentScript({
         typeof message === "object" &&
         message !== null &&
         "type" in message &&
+        message.type === "xep:source-status"
+      )
+        return Promise.resolve({ ready: true });
+      if (
+        typeof message === "object" &&
+        message !== null &&
+        "type" in message &&
+        message.type === "xep:return-hint"
+      ) {
+        const hint = document.createElement("div");
+        hint.className = "region-picker-hint";
+        hint.textContent =
+          "精修内容已复制。请按秀米原生流程粘贴；助手不会自动覆盖或保存原稿。";
+        shadow.append(hint);
+        ctx.setTimeout(() => hint.remove(), 10000);
+        return Promise.resolve({ shown: true });
+      }
+      if (
+        typeof message === "object" &&
+        message !== null &&
+        "type" in message &&
         message.type === "xep:open"
       ) {
         open();

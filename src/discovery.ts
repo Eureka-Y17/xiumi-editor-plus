@@ -28,6 +28,29 @@ function richness(el: HTMLElement) {
   );
 }
 export function discoverRegion(doc: Document): InspectionRegion | null {
+  const native = Array.from(
+    doc.querySelectorAll<HTMLElement>(".tn-paper-document-root"),
+  ).find((el) => {
+    const r = el.getBoundingClientRect();
+    const style = doc.defaultView!.getComputedStyle(el);
+    return (
+      r.width > 200 &&
+      r.height > 50 &&
+      !el.hidden &&
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      !el.closest("xep-inspector")
+    );
+  });
+  if (native)
+    return {
+      root:
+        native.querySelector<HTMLElement>(
+          ".tn-page-container.active .tn-page",
+        ) ?? native,
+      scope:
+        "识别秀米当前文章区域，过滤编辑外壳；请核对内容。仅高亮检查，原生联动已暂停。",
+    };
   const editors = Array.from(
     doc.querySelectorAll<HTMLElement>('[contenteditable="true"]'),
   ).filter((el) => {

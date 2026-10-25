@@ -4,6 +4,102 @@
   color: #263e36;
   font-size: 13px;
 }
+.property-editor {
+  margin-top: 12px;
+  border-top: 1px solid #e6ede5;
+  padding-bottom: 15px;
+}
+.property-editor label {
+  display: block;
+  color: #708774;
+  font-size: 11px;
+}
+.property-editor select {
+  display: block;
+  width: 100%;
+  margin: 6px 0 10px;
+  border: 1px solid #dbe6dc;
+  border-radius: 6px;
+  padding: 7px;
+  background: white;
+  color: #3b6149;
+  font: inherit;
+}
+.color-inputs {
+  display: flex;
+  gap: 8px;
+}
+.color-inputs input {
+  min-width: 0;
+  border: 1px solid #dbe6dc;
+  border-radius: 5px;
+  padding: 5px;
+  font: 12px monospace;
+  background: white;
+  color: #385c45;
+}
+.color-inputs input[type="color"] {
+  width: 45px;
+  height: 34px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+.color-inputs input:not([type="color"]) {
+  width: 100%;
+}
+.swatches {
+  display: flex;
+  gap: 7px;
+  margin: 10px 0;
+}
+.swatches button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #d4ddcf;
+  border-radius: 50%;
+}
+.apply-property {
+  background: #237b60;
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 5px;
+  font-size: 11px;
+}
+.property-editor textarea {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #dce6d8;
+  border-radius: 6px;
+  font: 12px/1.8 system-ui;
+  color: #3b5944;
+  resize: vertical;
+}
+.property-note {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #91a089;
+}
+.background-note {
+  padding: 9px;
+  background: #faf6e9;
+  border-radius: 6px;
+  font-size: 10px;
+  line-height: 1.8;
+  color: #8b784b;
+}
+.background-note button {
+  display: block;
+  font: inherit;
+  background: white;
+  border: 1px solid #e0d8bf;
+  border-radius: 5px;
+  margin-top: 6px;
+  padding: 5px;
+}
 .scope-info .import-entry {
   background: #19775e;
   color: #fff;
