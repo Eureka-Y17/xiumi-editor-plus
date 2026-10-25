@@ -27,19 +27,19 @@ function Popup() {
         <br />
         都更顺手。
       </h1>
-      <p>查看结构、精准选择，在自制演示中体验组件编辑。</p>
+      <p>从秀米导出后粘贴导入，整理图文，再复制到公众号。</p>
       <button
         onClick={() =>
           browser.tabs.create({ url: browser.runtime.getURL("/demo.html") })
         }
       >
-        打开交互演示 ↗
+        打开精修工作台 ↗
       </button>
       <a href="https://xiumi.us" target="_blank" rel="noreferrer">
         前往秀米 →
       </a>
       <small>
-        v0.1.0 · 实验版
+        v0.2.0 · 实验版
         <br />
         真实秀米仅提供结构检查，修改尚未开放。
       </small>

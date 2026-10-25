@@ -4,6 +4,62 @@
   color: #263e36;
   font-size: 13px;
 }
+.scope-info .import-entry {
+  background: #19775e;
+  color: #fff;
+  border-color: #19775e;
+}
+.scope-info {
+  margin: 0 14px 12px;
+  padding: 10px;
+  background: #f8f5eb;
+  border: 1px solid #e9dfc6;
+  border-radius: 7px;
+  color: #806738;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.scope-info strong {
+  font-size: 11px;
+}
+.scope-info p {
+  margin: 6px 0;
+  line-height: 1.65;
+}
+.scope-info > div {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.scope-info button {
+  background: white;
+  border: 1px solid #ded6bf;
+  padding: 5px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+.region-picker-frame {
+  position: fixed;
+  pointer-events: none;
+  border: 3px solid #157a64;
+  background: #157a6414;
+  z-index: 2147483647;
+  display: none;
+}
+.region-picker-hint {
+  position: fixed;
+  left: 20px;
+  top: 20px;
+  max-width: calc(100vw - 40px);
+  padding: 12px 18px;
+  background: #174c3e;
+  color: #fff;
+  box-shadow: 0 8px 30px #123b3429;
+  border-radius: 9px;
+  pointer-events: none;
+  font: 13px/1.7 system-ui;
+  z-index: 2147483647;
+}
 * {
   box-sizing: border-box;
 }

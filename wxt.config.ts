@@ -5,7 +5,7 @@ export default defineConfig({
     name: "秀米编辑增强助手 · Xiumi Editor Plus",
     description:
       "看清组件结构，轻松调整图文。秀米页面结构检查与本地编辑演示工具。",
-    version: "0.1.0",
-    permissions: ["storage"],
+    version: "0.2.0",
+    permissions: ["storage", "clipboardWrite"],
   },
 });

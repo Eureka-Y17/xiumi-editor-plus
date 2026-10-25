@@ -14,6 +14,12 @@ import { EditorAdapter } from "../../src/adapter";
 import { Panel } from "../../src/Panel";
 import panelCss from "../../src/panel.css?inline";
 import "./style.css";
+import { ImportDialog } from "../../src/ImportDialog";
+import {
+  exportArticle,
+  prepareImportedRoot,
+  type ImportedArticle,
+} from "../../src/importer";
 function Demo() {
   const [index, setIndex] = useState(0),
     [generation, setGeneration] = useState(0),
@@ -21,13 +27,59 @@ function Demo() {
     [hidden, setHidden] = useState(false);
   const article = useRef<HTMLElement>(null),
     panelHost = useRef<HTMLDivElement>(null);
+  const [imported, setImported] = useState<ImportedArticle | null>(null);
+  const [importOpen, setImportOpen] = useState(() =>
+    new URLSearchParams(location.search).has("import"),
+  );
+  const [exportMessage, setExportMessage] = useState("");
   const html = useMemo(
-    () => ({ __html: fixtures[index].html }),
-    [index, generation],
+    () => ({ __html: imported?.html ?? fixtures[index].html }),
+    [index, generation, imported],
   );
   useEffect(() => {
-    if (article.current) setAdapter(new EditorAdapter(article.current, "demo"));
-  }, [index, generation]);
+    if (article.current) {
+      if (imported) prepareImportedRoot(article.current);
+      setAdapter(
+        new EditorAdapter(article.current, imported ? "imported" : "demo"),
+      );
+    }
+  }, [index, generation, imported]);
+  async function copyArticle() {
+    if (!article.current) return;
+    const content = exportArticle(article.current);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([content.html], { type: "text/html" }),
+          "text/plain": new Blob([content.text], { type: "text/plain" }),
+        }),
+      ]);
+      setExportMessage(
+        "已复制完整富文本，请到公众号正文编辑器 Ctrl+V，并检查手机预览。",
+      );
+    } catch {
+      setExportMessage(
+        "浏览器未允许复制，请先下载 HTML 备份，或检查浏览器的剪贴板设置。",
+      );
+    }
+  }
+  function downloadArticle() {
+    if (!article.current) return;
+    const content = exportArticle(article.current);
+    const url = URL.createObjectURL(
+      new Blob(
+        [
+          `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>精修图文</title><body>${content.html}</body></html>`,
+        ],
+        { type: "text/html;charset=utf-8" },
+      ),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "精修图文.html";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   useEffect(() => {
     if (!panelHost.current || !adapter || hidden) return;
     const shadow =
@@ -62,9 +114,18 @@ function Demo() {
         </a>
         <span className="top-divider" />
         <span className="workspace-name">
-          编辑工作台 <span className="pill">DEMO</span>
+          编辑工作台{" "}
+          <span className="pill">{imported ? "IMPORTED" : "DEMO"}</span>
         </span>
         <div className="top-right">
+          <button className="import-launch" onClick={() => setImportOpen(true)}>
+            导入秀米推文
+          </button>
+          {imported && (
+            <button className="import-launch" onClick={copyArticle}>
+              复制到公众号
+            </button>
+          )}
           <span className="local-state">
             <Check size={13} />
             仅在本地运行
@@ -85,7 +146,7 @@ function Demo() {
           <h2>
             从细节，
             <br />
-            让修改更顺手。
+            让修改顺手。
           </h2>
           <p className="rail-copy">
             不再困在层层布局里。
@@ -99,8 +160,10 @@ function Demo() {
             {fixtures.map((f, i) => (
               <button
                 key={f.name}
-                className={index === i ? "current" : ""}
+                className={!imported && index === i ? "current" : ""}
                 onClick={() => {
+                  setImported(null);
+                  setExportMessage("");
                   setIndex(i);
                   setGeneration((g) => g + 1);
                 }}
@@ -131,10 +194,12 @@ function Demo() {
         <main className="editor-space">
           <div className="editor-title">
             <div>
-              <span className="breadcrumb">工作台 / 自制示例</span>
+              <span className="breadcrumb">
+                工作台 / {imported ? "已导入图文" : "自制示例"}
+              </span>
               <h1>
-                {fixtures[index].name}
-                <span>未命名草稿</span>
+                {imported ? "我的精修图文" : fixtures[index].name}
+                <span>{imported ? "仅本地 · 未保存" : "未命名草稿"}</span>
               </h1>
             </div>
             <button
@@ -157,17 +222,43 @@ function Demo() {
             <article
               key={`${index}-${generation}`}
               ref={article}
-              className="paper"
+              className={imported ? "imported-paper" : "paper"}
               data-testid="article"
+              onClick={(event) => {
+                if (
+                  imported &&
+                  event.target instanceof Element &&
+                  event.target.closest("a")
+                )
+                  event.preventDefault();
+              }}
               dangerouslySetInnerHTML={html}
             />
             <div className="paper-caption">
               XIUMI EDITOR PLUS · LOCAL PLAYGROUND
             </div>
           </div>
+          {imported && (
+            <div className="export-actions">
+              <button onClick={copyArticle}>复制到公众号</button>
+              <button onClick={downloadArticle}>下载 HTML 备份</button>
+              <p role="status">
+                {exportMessage ||
+                  "先核对图文，再复制到公众号；刷新页面会丢失未备份的修改。"}
+              </p>
+              <details>
+                <summary>导入说明与兼容提示</summary>
+                {imported.warnings.map((w) => (
+                  <p key={w}>{w}</p>
+                ))}
+              </details>
+            </div>
+          )}
           <div className="demo-warning">
             <span />
-            演示不连接秀米账号，不保存或上传稿件。真实秀米目前仅支持结构检查。
+            {imported
+              ? "编辑的是导入副本，不写回秀米。图片按原地址加载，请核对最终公众号效果。"
+              : "演示不连接秀米账号，不保存或上传稿件。真实秀米目前仅支持结构检查。"}
           </div>
         </main>
         <div
@@ -182,6 +273,17 @@ function Demo() {
           </button>
         )}
       </div>
+      {importOpen && (
+        <ImportDialog
+          onClose={() => setImportOpen(false)}
+          onImport={(data) => {
+            setImported(data);
+            setImportOpen(false);
+            setGeneration((g) => g + 1);
+            setExportMessage("");
+          }}
+        />
+      )}
     </div>
   );
 }

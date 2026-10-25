@@ -25,9 +25,19 @@ import { browser } from "wxt/browser";
 export function Panel({
   adapter,
   onClose,
+  scope,
+  onPickRegion,
+  onExpandRegion,
+  onRescan,
+  onOpenWorkspace,
 }: {
   adapter: EditorAdapter;
   onClose?: () => void;
+  scope?: string;
+  onPickRegion?: () => void;
+  onExpandRegion?: () => void;
+  onRescan?: () => void;
+  onOpenWorkspace?: () => void;
 }) {
   const [tree, setTree] = useState<ComponentNode[]>([]),
     [selected, setSelected] = useState<string | null>(null);
@@ -44,7 +54,7 @@ export function Panel({
   const highlight = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const chooseRef = useRef<(id: string, scroll: boolean) => void>(() => {});
-  const readonly = adapter.mode !== "demo";
+  const readonly = adapter.mode === "xiumi-readonly";
   const all: ComponentNode[] = [];
   const flatten = (nodes: ComponentNode[]) =>
     nodes.forEach((n) => {
@@ -316,8 +326,32 @@ export function Panel({
           <span className="status-dot" />
           {readonly
             ? "结构检查模式 · 修改尚未验证"
-            : "本地演示 · 操作不会影响秀米稿件"}
+            : adapter.mode === "imported"
+              ? "已导入图文 · 编辑不会影响秀米原稿"
+              : "本地演示 · 操作不会影响秀米稿件"}
         </div>
+        {readonly && (
+          <div className="scope-info">
+            <strong>当前检查范围 · {all.length} 个节点</strong>
+            <p>
+              {adapter.root.isConnected
+                ? scope
+                : "原区域已被页面替换，请重新识别。"}
+            </p>
+            <div>
+              <button onClick={onPickRegion}>点选文章范围</button>
+              <button disabled={!onExpandRegion} onClick={onExpandRegion}>
+                扩大一层
+              </button>
+              <button onClick={onRescan}>重新识别</button>
+              {onOpenWorkspace && (
+                <button className="import-entry" onClick={onOpenWorkspace}>
+                  导入推文精修 ↗
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {guide && (
           <div className="guide">
             <strong>三步上手</strong>
@@ -349,7 +383,7 @@ export function Panel({
           {tab === "structure" ? (
             <>
               <div className="section-label">
-                文章结构
+                {readonly ? "当前范围结构" : "文章结构"}
                 <button
                   className="icon-btn"
                   aria-label="刷新结构"

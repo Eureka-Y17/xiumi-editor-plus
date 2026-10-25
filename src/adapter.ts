@@ -15,7 +15,7 @@ export class EditorAdapter {
   private revision = 0;
   constructor(
     public readonly root: HTMLElement,
-    public readonly mode: "demo" | "xiumi-readonly",
+    public readonly mode: "demo" | "imported" | "xiumi-readonly",
   ) {
     this.baseline = this.expected = root.innerHTML;
   }
@@ -103,10 +103,12 @@ export class EditorAdapter {
     return this.redoStack.length > 0;
   }
   get canRestore() {
-    return this.mode === "demo" && this.root.innerHTML !== this.baseline;
+    return (
+      this.mode !== "xiumi-readonly" && this.root.innerHTML !== this.baseline
+    );
   }
   private editable(el?: HTMLElement): Capability {
-    if (this.mode !== "demo")
+    if (this.mode === "xiumi-readonly")
       return {
         allowed: false,
         reason: "真实秀米保存机制尚未验证，当前仅支持结构检查。",
@@ -250,7 +252,7 @@ export class EditorAdapter {
   }
   private history(redo: boolean) {
     if (
-      this.mode !== "demo" ||
+      this.mode === "xiumi-readonly" ||
       !this.root.isConnected ||
       this.root.innerHTML !== this.expected
     )
@@ -266,7 +268,7 @@ export class EditorAdapter {
   }
   restore() {
     if (
-      this.mode !== "demo" ||
+      this.mode === "xiumi-readonly" ||
       !this.root.isConnected ||
       this.root.innerHTML !== this.expected
     )
