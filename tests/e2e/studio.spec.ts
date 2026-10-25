@@ -114,6 +114,13 @@ test("本地编辑台：自由拖拽、所有组件图层、组合、文字、�
       .getByRole("button", { name: "应用并返回文章", exact: true })
       .click();
     await expect(paper.locator("p").first()).toHaveText("这是一段新的文字");
+    await page
+      .getByRole("button", { name: "预览 / 二维码", exact: true })
+      .click();
+    await expect(
+      page.frameLocator('iframe[title="图文手机预览"]').locator("h1"),
+    ).toHaveCSS("font-size", "28px");
+    await page.getByRole("button", { name: "关闭预览", exact: true }).click();
     expect(await paper.locator("p").first().innerHTML()).toMatch(
       /bold|700|<b>|strong/,
     );

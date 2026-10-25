@@ -56,7 +56,7 @@ import { exportArticle } from "./importer";
 import { hexColor } from "./appearance";
 import { browser } from "wxt/browser";
 import QRCode from "qrcode";
-import { deliveryContent, wrapArticle } from "./delivery";
+import { deliveryContent, wrapArticle, studioCopy } from "./delivery";
 import "./studio.css";
 import { RichTextDialog } from "./RichTextDialog";
 
@@ -474,7 +474,10 @@ export function Studio() {
   }, [engine]);
   function articleHtml() {
     if (!engine || !project) return "";
-    return wrapArticle(exportArticle(engine.root).html, project.width);
+    return wrapArticle(
+      exportArticle(studioCopy(engine.root)).html,
+      project.width,
+    );
   }
   const pageHtml = () =>
     `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>图文预览</title><body style="margin:0;background:white">${articleHtml()}</body></html>`;

@@ -77,6 +77,11 @@ it("复制清除重复DOM ID，删除、插入可整体撤销", () => {
 it("文字、字体、颜色、布局样式不接受CSS执行或远程URL注入", () => {
   e.style([id("#a")], { fontWeight: "700", fontSize: "20px" });
   expect(root.querySelector<HTMLElement>("#a")!.style.fontWeight).toBe("700");
+  e.style([id("#a")], { width: "200", padding: "12 20" });
+  expect(root.querySelector<HTMLElement>("#a")!.style.width).toBe("200px");
+  expect(root.querySelector<HTMLElement>("#a")!.style.padding).toBe(
+    "12px 20px",
+  );
   expect(() =>
     e.style([id("#a")], { backgroundImage: "url(https://bad.test/a)" }),
   ).toThrow("样式");

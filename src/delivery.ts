@@ -3,10 +3,31 @@ import { exportArticle } from "./importer";
 export function wrapArticle(html: string, width: number) {
   return `<section style="box-sizing:border-box;width:${width}px;max-width:100%;padding:24px;margin:0 auto;font:16px/1.8 system-ui,sans-serif;color:#263d36;overflow-wrap:anywhere">${html}</section>`;
 }
+export function studioCopy(root: HTMLElement) {
+  const clone = root.cloneNode(true) as HTMLElement;
+  // Preserve the studio's base typography outside the extension stylesheet.
+  for (const el of clone.querySelectorAll<HTMLElement>("p,h1,h2,h3")) {
+    const heading = el.tagName !== "P";
+    const defaults: Record<string, string> = {
+      marginTop: el.tagName === "H3" ? "12px" : heading ? "16px" : "12px",
+      marginBottom: el.tagName === "H3" ? "12px" : heading ? "16px" : "12px",
+    };
+    if (heading) {
+      defaults.fontSize =
+        el.tagName === "H1" ? "28px" : el.tagName === "H2" ? "23px" : "19px";
+      if (el.tagName !== "H3")
+        defaults.lineHeight = el.tagName === "H1" ? "1.4" : "1.5";
+    }
+    for (const [key, value] of Object.entries(defaults))
+      if (!(el.style as unknown as Record<string, string>)[key])
+        (el.style as unknown as Record<string, string>)[key] = value;
+  }
+  return clone;
+}
 // The editable project keeps its layers. Only the outgoing copy is flattened.
 export async function deliveryContent(root: HTMLElement, width: number) {
   const snapshot = root.innerHTML;
-  const clone = root.cloneNode(true) as HTMLElement;
+  const clone = studioCopy(root);
   const originals = Array.from(root.querySelectorAll<HTMLElement>("*"));
   const copies = Array.from(clone.querySelectorAll<HTMLElement>("*"));
   const composites = originals.filter(

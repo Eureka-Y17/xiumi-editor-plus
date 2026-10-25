@@ -174,6 +174,34 @@ export class StudioEngine extends EditorAdapter {
   }
   style(ids: string[], values: Record<string, string>) {
     const nodes = this.nodes(ids, false);
+    const lengths = new Set([
+      "fontSize",
+      "letterSpacing",
+      "textIndent",
+      "padding",
+      "margin",
+      "borderRadius",
+      "borderWidth",
+      "width",
+      "height",
+      "gap",
+    ]);
+    values = Object.fromEntries(
+      Object.entries(values).map(([key, value]) => [
+        key,
+        lengths.has(key) &&
+        value
+          .trim()
+          .split(/\s+/)
+          .every((n) => /^-?\d+(?:\.\d+)?$/.test(n))
+          ? value
+              .trim()
+              .split(/\s+/)
+              .map((n) => `${n}px`)
+              .join(" ")
+          : value,
+      ]),
+    );
     const allowed = [
       "color",
       "backgroundColor",
