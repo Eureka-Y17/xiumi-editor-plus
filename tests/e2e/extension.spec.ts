@@ -246,7 +246,7 @@ test("安装真实扩展并验证演示、面板与只读保护", async () => {
     await page.route("https://xiumi.us/native-fixture", (route) =>
       route.fulfill({
         contentType: "text/html; charset=utf-8",
-        body: '<div tn-editing-desk><article class="tn-paper-document-root" style="width:500px;min-height:400px"><div class="tn-page-container"><section class="tn-page"><p>非活动旧页</p></section></div><div class="tn-page-container active"><div class="tn-page-inst"><section class="tn-page"><div tn-comp-role="layer"><div><div></div><div style="display:none"><p>隐藏副本</p></div><div><p id="native-target">原生段落</p><p>第二段</p></div></div></div></section></div></div></article></div>',
+        body: '<html><body style="transform:translateX(40px)"><div tn-editing-desk><article class="tn-paper-document-root" style="width:500px;min-height:400px;margin-left:400px"><div class="tn-page-container"><section class="tn-page"><p>非活动旧页</p></section></div><div class="tn-page-container active"><div class="tn-page-inst"><section class="tn-page"><div tn-comp-role="layer"><div><div></div><div style="display:none"><p>隐藏副本</p></div><div><div style="position:fixed;left:0;top:0;width:100px;height:200px"><p>落在素材栏的副本</p></div><p id="native-target">原生段落</p><p>第二段</p></div></div></div></section></div></div></article></div></body></html>',
       }),
     );
     await page.goto("https://xiumi.us/native-fixture");
@@ -280,6 +280,8 @@ test("安装真实扩展并验证演示、面板与只读保护", async () => {
     const highlightBox = await page.locator(".selection-overlay").boundingBox();
     expect(highlightBox!.width).toBeCloseTo(targetBox!.width, 0);
     expect(highlightBox!.height).toBeCloseTo(targetBox!.height, 0);
+    expect(highlightBox!.x).toBeCloseTo(targetBox!.x, 0);
+    expect(highlightBox!.y).toBeCloseTo(targetBox!.y, 0);
     expect(await page.locator("article").innerHTML()).toBe(originalNative);
     const workspacePromise = context.waitForEvent("page");
     await page

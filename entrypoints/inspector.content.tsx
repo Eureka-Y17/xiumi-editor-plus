@@ -18,7 +18,9 @@ export default defineContentScript({
     shadow.append(style);
     const mount = document.createElement("div");
     shadow.append(mount);
-    document.body.append(host);
+    // Avoid body transforms/zoom creating a second coordinate system for
+    // viewport-based selection overlays.
+    document.documentElement.append(host);
     const app = createRoot(mount);
     const openWorkspace = () => {
       void browser.runtime.sendMessage({ type: "xep:workspace" });

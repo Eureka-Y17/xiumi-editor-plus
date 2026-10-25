@@ -35,6 +35,7 @@ export class EditorAdapter {
   }
   tree(): ComponentNode[] {
     this.elements.clear();
+    const bounds = this.root.getBoundingClientRect();
     const walk = (
       el: HTMLElement,
       parentId: string | null,
@@ -57,6 +58,24 @@ export class EditorAdapter {
           )
         )
           return [];
+        const rect = el.getBoundingClientRect();
+        // Framework helper copies may be descendants of the editor yet render
+        // outside the paper. Never offer those copies as article components.
+        if (
+          bounds.width > 0 &&
+          bounds.height > 0 &&
+          (rect.width <= 0 ||
+            rect.height <= 0 ||
+            rect.right <= bounds.left ||
+            rect.left >= bounds.right ||
+            rect.bottom <= bounds.top ||
+            rect.top >= bounds.bottom)
+        )
+          return el.matches(blocked)
+            ? []
+            : Array.from(el.children).flatMap((c) =>
+                walk(c as HTMLElement, parentId, depth + 1),
+              );
         // These are editor/page shells, not article components. Retain their descendants.
         if (
           el.matches(
