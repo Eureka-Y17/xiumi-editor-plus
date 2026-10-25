@@ -21,6 +21,7 @@ import {
   type ImportedArticle,
 } from "../../src/importer";
 import { browser } from "wxt/browser";
+import { Studio } from "../../src/Studio";
 function Demo() {
   const [index, setIndex] = useState(0),
     [generation, setGeneration] = useState(0),
@@ -319,4 +320,6 @@ function Demo() {
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(<Demo />);
+createRoot(document.getElementById("root")!).render(
+  new URLSearchParams(location.search).has("legacy") ? <Demo /> : <Studio />,
+);

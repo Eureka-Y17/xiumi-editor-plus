@@ -1,22 +1,8 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { browser } from "wxt/browser";
 import "../../src/popup.css";
 function Popup() {
-  useEffect(() => {
-    browser.tabs
-      .query({ active: true, currentWindow: true })
-      .then(async ([tab]) => {
-        if (!tab?.id) return;
-        const result = await browser.tabs.sendMessage(tab.id, {
-          type: "xep:open",
-        });
-        if (result?.opened) window.close();
-      })
-      .catch(() => {
-        /* Outside Xiumi, keep the demo launcher available. */
-      });
-  }, []);
   return (
     <main>
       <span className="wordmark">
@@ -27,7 +13,7 @@ function Popup() {
         <br />
         都更顺手。
       </h1>
-      <p>从秀米导出后粘贴导入，整理图文，再复制到公众号。</p>
+      <p>在本地自由拖动、组合和编辑图文，自动保存草稿。</p>
       <button
         onClick={() =>
           browser.tabs.create({ url: browser.runtime.getURL("/demo.html") })
@@ -39,9 +25,9 @@ function Popup() {
         前往秀米 →
       </a>
       <small>
-        v0.3.0 · 实验版
+        v0.4.0 · 实验版
         <br />
-        真实秀米仅提供结构检查，修改尚未开放。
+        本地编辑 · 拖拽组合 · 图层精修
       </small>
     </main>
   );

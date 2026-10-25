@@ -9,7 +9,7 @@ import {
 const blocked =
   "svg,iframe,video,audio,canvas,script,object,embed,[data-xep-special]";
 const candidates =
-  "section,div,p,h1,h2,h3,h4,blockquote,img,ul,ol,li,figure,svg,iframe,video,table,span,strong,em,b,i,a,font";
+  "section,div,p,h1,h2,h3,h4,blockquote,img,ul,ol,li,figure,svg,iframe,video,table,tr,td,th,span,strong,em,b,i,a,font";
 export class EditorAdapter {
   private ids = new WeakMap<Element, string>();
   private elements = new Map<string, HTMLElement>();
@@ -189,7 +189,7 @@ export class EditorAdapter {
       this.mode !== "xiumi-readonly" && this.root.innerHTML !== this.baseline
     );
   }
-  private editable(el?: HTMLElement, propertyOnly = false): Capability {
+  protected editable(el?: HTMLElement, propertyOnly = false): Capability {
     if (this.mode === "xiumi-readonly")
       return {
         allowed: false,
@@ -245,7 +245,7 @@ export class EditorAdapter {
       return { allowed: false, reason: "仅支持演示中已标记的同级重叠组件。" };
     return base;
   }
-  private transact(fn: () => void) {
+  protected transact(fn: () => void) {
     const before = this.root.innerHTML;
     fn();
     const after = this.root.innerHTML;
@@ -279,7 +279,7 @@ export class EditorAdapter {
     if (!cap.allowed || !el) return cap;
     if (
       property === "text" &&
-      (!el.matches("p,h1,h2,h3,h4,blockquote,span,strong,em,b,i,a,font,li") ||
+      (!el.matches("p,h1,h2,h3,h4,blockquote,span,strong,em,b,i,a,font,li,td,th") ||
         el.querySelector("img,section,div,ul,ol,table,video,audio,svg"))
     )
       return {

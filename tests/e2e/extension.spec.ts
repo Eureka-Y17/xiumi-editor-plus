@@ -17,7 +17,7 @@ test("安装真实扩展并验证演示、面板与只读保护", async () => {
     if (!worker) worker = await context.waitForEvent("serviceworker");
     const id = new URL(worker.url()).host,
       page = await context.newPage();
-    await page.goto(`chrome-extension://${id}/demo.html`);
+    await page.goto(`chrome-extension://${id}/demo.html?legacy=1`);
     await expect(
       page.getByRole("complementary", { name: "秀米编辑增强面板" }),
     ).toBeVisible();
@@ -177,131 +177,12 @@ test("安装真实扩展并验证演示、面板与只读保护", async () => {
     });
     await page.route("https://xiumi.us/**", (route) =>
       route.fulfill({
-        contentType: "text/html; charset=utf-8",
-        body: '<html><body><div contenteditable="true" style="width:500px;height:500px"><p>隔离夹具：真实站点尚未验证</p><p>第二段</p></div></body></html>',
+        contentType: "text/html",
+        body: "<article><p>原生编辑器不再注入助手</p></article>",
       }),
     );
-    await page.goto("https://xiumi.us/xep-test-fixture");
-    await page.getByRole("button", { name: /秀米 Plus/ }).click();
-    await expect(page.getByText("结构检查模式 · 修改尚未验证")).toBeVisible();
-    await page.locator(".node").first().click();
-    await expect(
-      page.getByRole("button", { name: "向后移动", exact: true }),
-    ).toBeDisabled();
-    await page.screenshot({
-      path: "docs/screenshots/readonly-fixture.png",
-      fullPage: true,
-    });
-    await page.reload();
-    await expect(page.getByRole("button", { name: /秀米 Plus/ })).toHaveCount(
-      1,
-    );
-    await page.bringToFront();
-    const opened = await worker.evaluate(
-      "chrome.tabs.query({active:true,currentWindow:true}).then(([tab]) => chrome.tabs.sendMessage(tab.id,{type:'xep:open'}))",
-    );
-    expect(opened).toEqual({ opened: true });
-    await expect(
-      page.getByRole("complementary", { name: "秀米编辑增强面板" }),
-    ).toHaveCount(1);
-    await page.route("https://xiumi.us/nested-fixture", (route) =>
-      route.fulfill({
-        contentType: "text/html; charset=utf-8",
-        body: '<main style="width:1200px"><button>素材库（不能被算入文章）</button><article id="paper" style="width:500px"><h1>十本书 · 一次线上共读</h1><section><img alt="第一本书" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" width="100" height="100"><div contenteditable="true" style="width:420px;min-height:100px"><p>推荐语</p><p>人脑是如何在漫长进化中获得记忆的？</p></div></section><section><h2>第二本书</h2><img alt="第二本书" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" width="100" height="100"><p>人工智能的底层逻辑</p></section></article></main>',
-      }),
-    );
-    await page.goto("https://xiumi.us/nested-fixture");
-    await page.getByRole("button", { name: /秀米 Plus/ }).click();
-    await expect(page.locator("#paper")).toHaveCount(1);
-    await expect(
-      page.locator(".node").filter({ hasText: "第一本书" }),
-    ).toHaveCount(1);
-    await expect(
-      page.locator(".node").filter({ hasText: "第二本书" }),
-    ).toHaveCount(2); // Visible heading and cover; the transparent shell is omitted.
-    await expect(
-      page.getByText("自动找到候选区域，请核对是否包含整篇推文。"),
-    ).toBeVisible();
-    await page
-      .getByRole("button", { name: "点选文章范围", exact: true })
-      .click();
-    await page.locator("article [contenteditable] p").first().click();
-    await expect(
-      page.getByText("手动选择的区域；可扩大一层，直到包含推文首尾。"),
-    ).toBeVisible();
-    await expect(page.locator(".tree-row")).toHaveCount(2);
-    await page.getByRole("button", { name: "扩大一层", exact: true }).click();
-    await expect(
-      page.locator(".node").filter({ hasText: "第一本书" }),
-    ).toHaveCount(1);
-    await page.getByRole("button", { name: "重新识别", exact: true }).click();
-    await expect(
-      page.getByText("自动找到候选区域，请核对是否包含整篇推文。"),
-    ).toBeVisible();
-    await page
-      .getByRole("button", { name: "点选文章范围", exact: true })
-      .click();
-    await page.keyboard.press("Escape");
-    await expect(page.locator(".region-picker-hint")).toHaveCount(0);
-    await page.route("https://xiumi.us/native-fixture", (route) =>
-      route.fulfill({
-        contentType: "text/html; charset=utf-8",
-        body: '<html><body style="transform:translateX(40px)"><div tn-editing-desk><article class="tn-paper-document-root" style="width:500px;min-height:400px;margin-left:400px"><div class="tn-page-container"><section class="tn-page"><p>非活动旧页</p></section></div><div class="tn-page-container active"><div class="tn-page-inst"><section class="tn-page"><div tn-comp-role="layer"><div><div></div><div style="display:none"><p>隐藏副本</p></div><div><div style="position:fixed;left:0;top:0;width:100px;height:200px"><p>落在素材栏的副本</p></div><p id="native-target">原生段落</p><p>第二段</p></div></div></div></section></div></div></article></div></body></html>',
-      }),
-    );
-    await page.goto("https://xiumi.us/native-fixture");
-    await page.evaluate(() => {
-      const w = window as unknown as Record<string, unknown>;
-      w.jQuery = (el: Element) => el;
-      w.angular = {
-        element: () => ({
-          controller: (name: string) =>
-            name === "tnEditingDesk"
-              ? {
-                  selectCellOrComp: (el: HTMLElement) => {
-                    document.documentElement.dataset.nativeSelected = el.id;
-                  },
-                }
-              : undefined,
-        }),
-      };
-    });
-    const originalNative = await page.locator("article").innerHTML();
-    await page.getByRole("button", { name: /秀米 Plus/ }).click();
-    await expect(page.locator(".tree-row")).toHaveCount(2);
-    await page
-      .locator(".node")
-      .filter({ hasText: /^原生段落$/ })
-      .click();
-    await expect(page.locator("html")).not.toHaveAttribute(
-      "data-native-selected",
-    );
-    const targetBox = await page.locator("#native-target").boundingBox();
-    const highlightBox = await page.locator(".selection-overlay").boundingBox();
-    expect(highlightBox!.width).toBeCloseTo(targetBox!.width, 0);
-    expect(highlightBox!.height).toBeCloseTo(targetBox!.height, 0);
-    expect(highlightBox!.x).toBeCloseTo(targetBox!.x, 0);
-    expect(highlightBox!.y).toBeCloseTo(targetBox!.y, 0);
-    expect(await page.locator("article").innerHTML()).toBe(originalNative);
-    const workspacePromise = context.waitForEvent("page");
-    await page
-      .getByRole("button", { name: "导入推文精修 ↗", exact: true })
-      .click();
-    const workspace = await workspacePromise;
-    await workspace.getByRole("textbox", { name: "粘贴秀米富文本" }).click();
-    await workspace.keyboard.press(
-      process.platform === "darwin" ? "Meta+V" : "Control+V",
-    );
-    await workspace
-      .getByRole("button", { name: "复制并回到秀米", exact: true })
-      .click();
-    await expect(
-      page.getByText(
-        "精修内容已复制。请按秀米原生流程粘贴；助手不会自动覆盖或保存原稿。",
-      ),
-    ).toBeVisible();
-    expect(await page.locator("article").innerHTML()).toBe(originalNative);
-    await workspace.close();
+    await page.goto("https://xiumi.us/local-only-check");
+    await expect(page.locator("xep-inspector")).toHaveCount(0);
   } finally {
     await context.close();
   }
