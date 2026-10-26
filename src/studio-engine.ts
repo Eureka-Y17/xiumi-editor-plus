@@ -54,6 +54,31 @@ const templates: Record<InsertKind, string> = {
     '<section data-xep-canvas="1" data-xep-overlap="" data-label="叠放画布" style="position:relative;height:280px;background:#f4f0e7;border-radius:12px;margin:20px 0"><section data-label="背景板" style="position:absolute;left:24px;top:24px;width:220px;height:150px;background:#ddbc91;border-radius:14px;z-index:0"></section><p data-label="可拖动文字卡片" style="position:absolute;left:85px;top:95px;width:230px;height:125px;margin:0;padding:20px;background:#25745e;color:white;z-index:1;border-radius:12px">拖动这张文字卡片，体验真正的前后叠放。</p></section>',
 };
 export class StudioEngine extends EditorAdapter {
+  protected override editable(el?: HTMLElement, propertyOnly = false) {
+    const base = super.editable(el, true);
+    if (!base.allowed || propertyOnly || !el) return base;
+    // Xiumi exports empty zero-width SVGs as layout shims, not interactive media.
+    const special = Array.from(
+      el.querySelectorAll(
+        "svg,iframe,video,audio,canvas,script,object,embed,[data-xep-special]",
+      ),
+    ).some(
+      (node) =>
+        !(
+          node.tagName.toLowerCase() === "svg" &&
+          !node.children.length &&
+          !node.textContent?.trim() &&
+          !node.hasAttribute("data-xep-special") &&
+          getComputedStyle(node).width === "0px"
+        ),
+    );
+    return special
+      ? {
+          allowed: false,
+          reason: "含特殊内容的组件可整体排序，内部拆分暂不支持。",
+        }
+      : base;
+  }
   constructor(root: HTMLElement) {
     prepareImportedRoot(root);
     root
@@ -166,16 +191,14 @@ export class StudioEngine extends EditorAdapter {
   }
   orderCapability(ids: string[], direction: "up" | "down") {
     try {
-      const targets = [
-        ...new Set(this.topNodes(ids).map((n) => this.flowAnchor(n))),
-      ];
+      const targets = this.orderTargets(ids);
       const parent = targets[0].parentElement;
       if (targets.some((n) => n.parentElement !== parent))
         return { allowed: false, reason: "请选择同一文章容器中的组件。" };
-      const boundary =
-        direction === "up"
-          ? targets[0].previousElementSibling
-          : targets[targets.length - 1].nextElementSibling;
+      const boundary = this.orderNeighbor(
+        direction === "up" ? targets[0] : targets[targets.length - 1],
+        direction,
+      );
       if (!boundary)
         return {
           allowed: false,
@@ -185,34 +208,83 @@ export class StudioEngine extends EditorAdapter {
               : "已经是当前容器的最后一项。",
         };
       if (
-        !this.editable(boundary as HTMLElement).allowed ||
+        !this.editable(boundary as HTMLElement, true).allowed ||
         (boundary as HTMLElement).closest('[data-xep-locked="1"]')
       )
         return { allowed: false, reason: "不能跨过锁定或特殊组件。" };
-      return { allowed: true, reason: "沿文章阅读顺序移动，不改变前后遮挡。" };
+      for (const n of targets) {
+        const cap = this.editable(n, true);
+        if (!cap.allowed || n.closest('[data-xep-locked="1"]'))
+          return { allowed: false, reason: cap.reason || "外层组件已锁定。" };
+      }
+      return {
+        allowed: true,
+        reason: "交换当前同级组件的顺序，保留内部结构。",
+      };
     } catch (e) {
       return { allowed: false, reason: (e as Error).message };
     }
   }
+  private layoutShim(node: Element) {
+    return (
+      node.matches("svg,span") &&
+      !node.children.length &&
+      !node.textContent?.trim() &&
+      getComputedStyle(node).width === "0px"
+    );
+  }
+  private orderNeighbor(node: Element, direction: "up" | "down") {
+    let next =
+      direction === "up"
+        ? node.previousElementSibling
+        : node.nextElementSibling;
+    while (next && this.layoutShim(next))
+      next =
+        direction === "up"
+          ? next.previousElementSibling
+          : next.nextElementSibling;
+    return next;
+  }
+  private orderTargets(ids: string[]) {
+    const targets = this.topNodes(ids, false).map((node) => {
+      let target = node;
+      // Only escape a wrapper with no peers. Never skip real same-level components.
+      while (
+        target.parentElement &&
+        target.parentElement !== this.root &&
+        Array.from(target.parentElement.children).filter(
+          (n) => !this.layoutShim(n),
+        ).length === 1 &&
+        !target.parentElement.hasAttribute("data-xep-canvas")
+      )
+        target = target.parentElement;
+      if (target.matches("td,th,tr") || target.closest("td,th"))
+        throw new Error("请移动整张表格，不要移动单元格。");
+      if (target.parentElement?.hasAttribute("data-xep-canvas"))
+        throw new Error("画布内请拖动坐标或调整遮挡；上下排序请选择整个画布。");
+      return target;
+    });
+    return [...new Set(targets)];
+  }
   order(ids: string[], direction: "up" | "down") {
     const cap = this.orderCapability(ids, direction);
     if (!cap.allowed) throw new Error(cap.reason);
-    const targets = [
-      ...new Set(this.topNodes(ids).map((n) => this.flowAnchor(n))),
-    ];
+    const targets = this.orderTargets(ids);
     for (const n of targets) {
-      const check = this.editable(n);
+      const check = this.editable(n, true);
       if (!check.allowed || n.closest('[data-xep-locked="1"]'))
         throw new Error(check.reason || "外层组件已锁定。");
     }
     const parent = targets[0].parentElement!;
     this.transact(() => {
       if (direction === "up") {
-        const before = targets[0].previousElementSibling!;
+        const before = this.orderNeighbor(targets[0], "up")!;
         for (const n of targets) parent.insertBefore(n, before);
       } else {
-        const after =
-          targets[targets.length - 1].nextElementSibling!.nextSibling;
+        const after = this.orderNeighbor(
+          targets[targets.length - 1],
+          "down",
+        )!.nextSibling;
         for (const n of targets) parent.insertBefore(n, after);
       }
     });
@@ -702,6 +774,17 @@ export class StudioEngine extends EditorAdapter {
           reason:
             "组件已占满父容器宽度，没有可见的左右移动空间；请先减小组件宽度。文字对齐请到“文字”分类设置。",
         };
+      if (
+        available > 0 &&
+        nodes.every((n) => {
+          const pos = this.horizontalAlignment(n, axis);
+          return Math.abs(pos.delta) < 0.75;
+        })
+      )
+        return {
+          allowed: false,
+          reason: "组件已在所选对齐位置，无需重复移动。",
+        };
       return {
         allowed: true,
         reason: "相对于父容器对齐整个组件；不改变文字段落的对齐方式。",
@@ -709,6 +792,32 @@ export class StudioEngine extends EditorAdapter {
     } catch (e) {
       return { allowed: false, reason: (e as Error).message };
     }
+  }
+  private horizontalAlignment(n: HTMLElement, axis: string) {
+    const parent = n.parentElement!,
+      s = getComputedStyle(parent);
+    const box = parent.getBoundingClientRect(),
+      own = n.getBoundingClientRect();
+    const scale = parent.offsetWidth ? box.width / parent.offsetWidth : 1;
+    const unit = scale || 1;
+    const left =
+      box.left +
+      ((parseFloat(s.borderLeftWidth) || 0) +
+        (parseFloat(s.paddingLeft) || 0)) *
+        unit;
+    const width =
+      (parent.clientWidth -
+        (parseFloat(s.paddingLeft) || 0) -
+        (parseFloat(s.paddingRight) || 0)) *
+      unit;
+    const desired =
+      left +
+      (axis === "right"
+        ? width - own.width
+        : axis === "center"
+          ? (width - own.width) / 2
+          : 0);
+    return { delta: (desired - own.left) / unit };
   }
   align(
     ids: string[],
@@ -719,18 +828,25 @@ export class StudioEngine extends EditorAdapter {
     const nodes = this.topNodes(ids, false);
     const parent = nodes[0].parentElement!;
     if (!parent.hasAttribute("data-xep-canvas")) {
+      const offsets = nodes.map((n) => this.horizontalAlignment(n, axis).delta);
       this.transact(() =>
-        nodes.forEach((n) => {
+        nodes.forEach((n, i) => {
           const s = getComputedStyle(n);
-          if (
-            ["grid", "inline-grid"].includes(getComputedStyle(parent).display)
-          )
-            n.style.justifySelf =
-              axis === "left" ? "start" : axis === "right" ? "end" : "center";
-          else if (["inline", "inline-block"].includes(s.display))
-            n.style.display = "block";
-          n.style.marginLeft = axis === "left" ? "0px" : "auto";
-          n.style.marginRight = axis === "right" ? "0px" : "auto";
+          // Keep flex sizing, transforms and the flow slot intact. Auto margins
+          // cannot move a flex-grow item when its peers consume all free space.
+          const positioned = [
+            "relative",
+            "absolute",
+            "fixed",
+            "sticky",
+          ].includes(s.position);
+          let base = positioned ? parseFloat(s.left) || 0 : 0;
+          if (["absolute", "fixed"].includes(s.position) && s.left === "auto")
+            base = n.offsetLeft - (parseFloat(s.marginLeft) || 0);
+          if (!positioned) n.style.position = "relative";
+          if (["absolute", "fixed"].includes(s.position))
+            n.style.right = "auto";
+          n.style.left = `${base + offsets[i]}px`;
         }),
       );
       return;

@@ -235,12 +235,44 @@ it("普通组件允许左右对齐，垂直对齐明确需要画布", () => {
     '<section><section id="a" style="width:120px"><p>文字</p></section></section>',
   );
   e.align([id("#a")], "right");
-  expect(root.querySelector<HTMLElement>("#a")!.style.marginLeft).toBe("auto");
-  expect(root.querySelector<HTMLElement>("#a")!.style.marginRight).toBe("0px");
+  expect(root.querySelector<HTMLElement>("#a")!.style.position).toBe(
+    "relative",
+  );
   expect(e.alignmentCapability([id("#a")], "top").allowed).toBe(false);
   expect(() => e.align([id("#a")], "top")).toThrow("垂直对齐");
   e.undo();
   expect(root.querySelector<HTMLElement>("#a")!.style.marginLeft).toBe("");
+});
+it("嵌套横排中优先交换真实同级块，不跳到外层文章", () => {
+  setup(
+    '<section id="outer" style="display:flex"><section><section id="book"><section id="a"><img src="a.png"></section><section id="b"><p>推荐语</p><svg style="width:0px"></svg></section></section></section></section>',
+  );
+  const original = root.querySelector("#b")!.innerHTML;
+  expect(e.orderCapability([id("#a")], "down").allowed).toBe(true);
+  e.order([id("#a")], "down");
+  expect(root.querySelector("#book")!.firstElementChild!.id).toBe("b");
+  expect(root.querySelector("#b")!.innerHTML).toBe(original);
+  e.order([id("#a")], "up");
+  expect(root.querySelector("#book")!.firstElementChild!.id).toBe("a");
+});
+it("含 SVG 的整体块排序保留 SVG，仍拒绝直接修改 SVG 内部", () => {
+  setup(
+    '<section id="a"><svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg></section><p id="b">乙</p>',
+  );
+  const svg = root.querySelector("svg")!.outerHTML;
+  e.order([id("#a")], "down");
+  expect(root.lastElementChild!.id).toBe("a");
+  expect(root.querySelector("svg")!.outerHTML).toBe(svg);
+  expect(e.orderCapability([id("svg")], "up").allowed).toBe(false);
+});
+it("可移动性检查和执行一致，外层锁定时在点击前拦截", () => {
+  setup(
+    '<section data-xep-locked="1"><p id="a">甲</p></section><p id="b">乙</p>',
+  );
+  expect(e.orderCapability([id("#a")], "down").allowed).toBe(false);
+  const before = root.innerHTML;
+  expect(() => e.order([id("#a")], "down")).toThrow("锁定");
+  expect(root.innerHTML).toBe(before);
 });
 it("撤销重做后保留同一结构的选择，并可继续编辑", () => {
   const current = id("#a");

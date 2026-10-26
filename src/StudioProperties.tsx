@@ -257,7 +257,7 @@ export function StudioProperties({
                     </button>
                   </div>
                   <p className="st-help">
-                    移动整块图文的上下位置；选在横向模板内部时，移动外层图文块。
+                    优先与当前同级组件交换顺序；没有同级时才移动外层块。横排中的同级互换会改变左右位置。
                   </p>
                   <h3>前后遮挡（不移动上下位置）</h3>
                   <div className="st-button-grid">
