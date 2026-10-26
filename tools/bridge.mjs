@@ -367,7 +367,7 @@ export function createBridge({
         return json(res, 200, {
           wechat: !!(credentials.appid && credentials.secret),
           previewBases: bases,
-          version: "0.4.2",
+          version: "0.5.0",
         });
       if (req.method !== "POST") return json(res, 404, { error: "未知入口" });
       let bytes = 0;

@@ -1,8 +1,8 @@
-# 本地编辑台操作手册 · 0.4.2
+# 本地编辑台操作手册 · 0.5.0
 
 ## 1. 安装与更新
 
-从 [Releases](https://github.com/Eureka-Y17/xiumi-editor-plus/releases) 下载 `xiumi-editor-plus-0.4.2-chrome.zip` 并解压到固定目录。Chrome 打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启开发者模式 →「加载已解压的扩展程序」，选择直接包含 `manifest.json` 的目录。
+从 [Releases](https://github.com/Eureka-Y17/xiumi-editor-plus/releases) 下载 `xiumi-editor-plus-0.5.0-chrome.zip` 并解压到固定目录。Chrome 打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启开发者模式 →「加载已解压的扩展程序」，选择直接包含 `manifest.json` 的目录。
 
 升级时先备份已有本地工程。若仍使用相同扩展安装路径，在管理页点「重新加载」，再刷新工作台；仅刷新网页不会更新扩展。更换扩展 ID、卸载、清理浏览器数据或换电脑可能导致原有草稿不可访问，跨设备请使用工程文件。
 
@@ -136,3 +136,19 @@ Ctrl+Z（Mac：⌘+Z）撤销文章修改；Ctrl+Y 或 Ctrl+Shift+Z（Mac：⌘+
 图片块与推荐语在结构树中属于同一父层时，可直接用向前/向后移动互换。块内含 SVG 不再阻止整个块排序，SVG 内部仍不能直接编辑。占位用的零宽空 SVG 不视为交互组件。
 
 位置页左右对齐采用实际坐标位移，兼容弹性组件没有剩余空间的情况。保留原文流占位和内部变换，不挤压其他组件；移动后可能与同级内容相遇，请核对外观并按 Ctrl+Z 恢复。已处于所选对齐位置时按钮禁用并说明原因。
+
+## 编辑台内置操作手册与长按框选
+
+点击顶部「操作手册」进入独立说明页，按左侧目录阅读十一章操作说明。章节中的动图来自真实编辑台操作，可播放、暂停或在新标签页放大；文字和动图随安装包离线提供，返回编辑台保留原文章和选择。Tab 在手册内切换控件，Esc 返回。
+
+左键在正文或中间空白区域按住约 0.45 秒，出现矩形后再拖动。完全框住父组件时只选最大层；只框住内部几项时选择子项。支持从右下往左上框选。Ctrl / ⌘ / Shift 追加已有选择，Esc 或窗口失焦取消框选并恢复先前选择。锁定组件与零尺寸占位不进入框选；框选本身不修改文章，也不会产生撤销记录。跨容器选中后，组合仍要求同父层。
+
+![长按框选](../public/guide/select.gif)
+
+![组合拖动](../public/guide/group.gif)
+
+![图层遮挡](../public/guide/layers.gif)
+
+![文字编辑](../public/guide/text.gif)
+
+动图可复现：构建后运行 `node tools/record-guide.mjs`（需要 Playwright Chromium），再运行 `python tools/encode-guide.py`（需要 Pillow）。录制使用自制示例与独立临时浏览器，不读取既有用户会话。

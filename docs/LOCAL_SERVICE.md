@@ -53,3 +53,14 @@ npm run bridge -- --lan
 - 本机 API 需要配对 Bearer 码，拒绝普通网页来源。预览页单独设置禁止脚本的内容策略。
 
 官方参考入口：[调用凭据](https://developers.weixin.qq.com/doc/offiaccount/Basic_Information/getStableAccessToken.html)、[正文图片上传](https://developers.weixin.qq.com/doc/service/api/material/permanent/api_uploadimage)、[新增草稿](https://developers.weixin.qq.com/doc/service/api/draftbox/draftmanage/api_draft_add)。文档页面在本次环境中未能完整读取，接口实现以自动契约测试和后续真实账号验证为边界，未对所有账号类型作兼容声明。
+
+## 第一次使用的完整步骤
+
+1. 扩展安装包与本机服务包分开下载。先在发布页找到与你扩展同版本的 local-service.zip，完整解压。
+2. 安装 Node.js 24+，关闭并重新打开服务启动窗口；双击解压目录的 start-preview.cmd，等待依赖准备完成。
+3. 窗口出现配对码后保持窗口开着。把码填入编辑台「连接」页面，不是秀米登录密码，也不是公众号 AppSecret。
+4. 点「连接本地服务」，允许浏览器申请本机访问权限。手机与电脑连同一 Wi-Fi。
+5. 转到「手机预览」，选择局域网地址再生成二维码。127.0.0.1 只代表当前设备，不能给另一台手机使用。
+6. 修改正文后重新生成二维码；旧预览是快照，不能实时跟随修改。重启服务后重新复制配对码连接。
+
+只在电脑编辑或复制到公众号，不需要这个服务。手机打不开时检查服务窗口、休眠、Wi-Fi 隔离、防火墙专用网络许可和 VPN。

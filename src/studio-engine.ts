@@ -118,6 +118,34 @@ export class StudioEngine extends EditorAdapter {
           : 1,
       );
   }
+  boxSelect(box: { x: number; y: number; width: number; height: number }) {
+    const contained: HTMLElement[] = [];
+    const visit = (nodes: ReturnType<StudioEngine["tree"]>) =>
+      nodes.forEach((n) => {
+        const el = this.element(n.id),
+          rect = el?.getBoundingClientRect();
+        if (
+          el &&
+          rect &&
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.left >= box.x - 1 &&
+          rect.top >= box.y - 1 &&
+          rect.right <= box.x + box.width + 1 &&
+          rect.bottom <= box.y + box.height + 1 &&
+          !el.closest('[data-xep-locked="1"]')
+        )
+          contained.push(el);
+        visit(n.children);
+      });
+    visit(this.tree());
+    return contained
+      .filter(
+        (el) =>
+          !contained.some((parent) => parent !== el && parent.contains(el)),
+      )
+      .map((el) => this.idFor(el)!);
+  }
   insert(
     kind: InsertKind,
     after?: string,

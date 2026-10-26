@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   Layers,
+  BookOpen,
   Plus,
   Type,
   Image as ImageIcon,
@@ -58,6 +59,7 @@ import QRCode from "qrcode";
 import { deliveryContent, wrapArticle, studioCopy } from "./delivery";
 import "./studio.css";
 import { RichTextDialog } from "./RichTextDialog";
+import { StudioManual } from "./StudioManual";
 import { StudioProperties } from "./StudioProperties";
 
 const blankProject = (html = starter, title = "未命名图文"): StudioProject => ({
@@ -106,6 +108,44 @@ export function Studio() {
     >([]),
     [formVersion, setFormVersion] = useState(0),
     [clipboardBusy, setClipboardBusy] = useState(false);
+  const [manual, setManual] = useState(false);
+  const [marquee, setMarquee] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const hold = useRef<{
+    x: number;
+    y: number;
+    active: boolean;
+    timer: ReturnType<typeof setTimeout>;
+    prior: string[];
+    add: boolean;
+  } | null>(null);
+  const suppressClick = useRef(false);
+  const stopHold = () => {
+    if (hold.current) clearTimeout(hold.current.timer);
+    hold.current = null;
+    setMarquee(null);
+  };
+  function beginHold(e: React.PointerEvent) {
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    stopHold();
+    const x = e.clientX,
+      y = e.clientY,
+      prior = [...latest.current.selection],
+      add = e.ctrlKey || e.metaKey || e.shiftKey;
+    const timer = setTimeout(() => {
+      if (!hold.current) return;
+      hold.current.active = true;
+      drag.current = null;
+      setGhost(null);
+      setMarquee({ x, y, width: 0, height: 0 });
+      setMessage("框选已开启：拖动框住组件，松开完成；Esc 取消。");
+    }, 450);
+    hold.current = { x, y, timer, active: false, prior, add };
+  }
   const [richId, setRichId] = useState<string | null>(null);
   const article = useRef<HTMLElement>(null),
     file = useRef<HTMLInputElement>(null),
@@ -348,6 +388,33 @@ export function Studio() {
   }
   useEffect(() => {
     const move = (e: PointerEvent) => {
+      const h = hold.current;
+      if (h?.active) {
+        e.preventDefault();
+        const box = {
+          x: Math.min(h.x, e.clientX),
+          y: Math.min(h.y, e.clientY),
+          width: Math.abs(e.clientX - h.x),
+          height: Math.abs(e.clientY - h.y),
+        };
+        setMarquee(box);
+        const found = latest.current.engine?.boxSelect(box) ?? [];
+        const all = h.add ? [...new Set([...h.prior, ...found])] : found;
+        const engine = latest.current.engine;
+        setSelection(
+          all.filter(
+            (id) =>
+              !all.some(
+                (other) =>
+                  other !== id &&
+                  engine?.element(other)?.contains(engine.element(id) ?? null),
+              ),
+          ),
+        );
+        setTab("structure");
+        return;
+      }
+      if (h && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 5) stopHold();
       const d = drag.current;
       if (!d) return;
       const dx = e.clientX - d.x,
@@ -385,6 +452,20 @@ export function Studio() {
       }
     };
     const up = (e: PointerEvent) => {
+      if (hold.current?.active) {
+        suppressClick.current = true;
+        setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+        const count = latest.current.selection.length;
+        setMessage(
+          `框选完成，已选择 ${count} 个最外层组件；Ctrl / ⌘ 可继续多选。`,
+        );
+        stopHold();
+        drag.current = null;
+        return;
+      }
+      stopHold();
       const d = drag.current;
       drag.current = null;
       setGhost(null);
@@ -406,20 +487,34 @@ export function Studio() {
       );
     };
     const cancel = () => {
+      if (hold.current?.active) setSelection(hold.current.prior);
+      stopHold();
       drag.current = null;
       setGhost(null);
     };
     window.addEventListener("pointermove", move, { passive: false });
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
+    window.addEventListener("blur", cancel);
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("blur", cancel);
     };
-  }, [engine, selection]);
+  }, [engine]);
+  useEffect(() => () => stopHold(), []);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && hold.current) {
+        setSelection(hold.current.prior);
+        stopHold();
+        drag.current = null;
+        setGhost(null);
+        setMessage("已取消框选。");
+        return;
+      }
+      if ((event.target as HTMLElement)?.closest("[data-st-manual]")) return;
       const mod = event.ctrlKey || event.metaKey;
       const target = event.target as HTMLElement;
       const e = latest.current.engine,
@@ -703,6 +798,10 @@ export function Studio() {
           {saveState}
         </span>
         <div className="st-header-actions">
+          <button onClick={() => setManual(true)}>
+            <BookOpen size={16} />
+            操作手册
+          </button>
           <button
             onClick={() => setSettings(true)}
             title="手机预览与公众号连接"
@@ -990,8 +1089,15 @@ export function Studio() {
           </div>
           <div
             className="st-stage"
+            onPointerDown={(e) => {
+              if (e.target === e.currentTarget) {
+                e.preventDefault();
+                beginHold(e);
+              }
+            }}
             onClick={(e) => {
-              if (e.target === e.currentTarget) setSelection([]);
+              if (e.target === e.currentTarget && !suppressClick.current)
+                setSelection([]);
             }}
           >
             <article
@@ -1000,7 +1106,10 @@ export function Studio() {
               data-testid="studio-paper"
               style={{ width: project.width }}
               dangerouslySetInnerHTML={html}
-              onPointerDown={(e) => startDrag(e)}
+              onPointerDown={(e) => {
+                startDrag(e);
+                beginHold(e);
+              }}
               onClick={(e) => {
                 if ((e.target as Element).closest("a")) e.preventDefault();
               }}
@@ -1038,6 +1147,19 @@ export function Studio() {
           {selection.length} 项已选 · Ctrl+G 组合 · Alt 点击深入组合
         </span>
       </footer>
+      {manual && <StudioManual onClose={() => setManual(false)} />}
+      {marquee && (
+        <div
+          className="st-marquee"
+          data-testid="selection-marquee"
+          style={{
+            left: marquee.x,
+            top: marquee.y,
+            width: marquee.width,
+            height: marquee.height,
+          }}
+        />
+      )}
       {boxes.map((b) => (
         <div
           key={b.id}
@@ -1324,7 +1446,8 @@ function DeliveryDialog({
                           打开预览页面
                         </a>
                         <small>
-                          一小时后过期。同一 Wi-Fi 下访问；服务需以 --lan 启动。
+                          一小时后过期。手机需与电脑同一
+                          Wi-Fi，保持服务窗口开着；修改文章后请重新生成。
                         </small>
                         <button
                           onClick={() =>
@@ -1353,11 +1476,59 @@ function DeliveryDialog({
             </>
           ) : (
             <div className="st-connection">
-              <h3>一次连接，预览与草稿同步</h3>
-              <p>
-                在项目目录运行 <code>npm run bridge -- --lan</code>
-                ，将终端显示的配对码粘贴到这里。服务仅在你本机运行。
+              <h3>第一次使用手机二维码？跟着这 4 步连接</h3>
+              <p className="st-setup-note">
+                电脑预览和日常编辑无需连接。只有手机扫码或公众号接口同步需要这个小服务：它在你的电脑上临时提供预览地址，文章不会上传到我们的服务器。
               </p>
+              <div className="st-setup-links">
+                <a
+                  href="https://github.com/Eureka-Y17/xiumi-editor-plus/releases"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  ① 下载本机服务包 local-service.zip ↗
+                </a>
+                <a href="https://nodejs.org/" target="_blank" rel="noreferrer">
+                  安装 Node.js 24+ ↗
+                </a>
+              </div>
+              <ol className="st-setup-steps">
+                <li>
+                  <strong>下载并解压：</strong>在发布页下载与扩展同版本的
+                  local-service.zip，完整解压到普通文件夹。
+                </li>
+                <li>
+                  <strong>双击启动：</strong>先安装 Node.js 24
+                  或更新版本，再双击文件夹中的 <code>start-preview.cmd</code>
+                  。首次准备可能需要几分钟，等待窗口出现“配对码”。
+                </li>
+                <li>
+                  <strong>复制配对码：</strong>
+                  保持服务窗口开着，把配对码粘贴到下方并点击“连接本地服务”。浏览器询问本机访问权限时选择允许。配对码不是秀米或公众号账号密码。
+                </li>
+                <li>
+                  <strong>手机扫码：</strong>手机与电脑连接同一
+                  Wi-Fi，切换到“手机预览”，选择局域网地址后生成二维码。
+                </li>
+              </ol>
+              <details>
+                <summary>没有配对码 / 连接不上 / 手机打不开？</summary>
+                <p>
+                  确认已经完整解压、Node.js
+                  安装完成、服务窗口仍开着。重启服务后复制新的配对码。手机需同一
+                  Wi-Fi，选择局域网地址而非
+                  127.0.0.1；系统防火墙允许专用网络访问。校园网隔离或 VPN
+                  也可能阻止访问。
+                </p>
+              </details>
+              <details>
+                <summary>macOS、Linux 或从源码启动</summary>
+                <p>
+                  在服务目录打开终端，运行{" "}
+                  <code>npm ci --omit=dev --ignore-scripts</code>，再运行{" "}
+                  <code>npm run bridge -- --lan</code>，使用显示的配对码。
+                </p>
+              </details>
               <label>
                 本机配对码
                 <input

@@ -936,3 +936,176 @@
   width: 100%;
   padding: 9px;
 }
+.st-marquee {
+  position: fixed;
+  z-index: 1005;
+  pointer-events: none;
+  border: 1px solid #24765f;
+  background: #24765f20;
+  box-shadow: 0 0 0 1px #ffffff80;
+}
+.st-manual {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: #f6f8f4;
+  color: #243c35;
+  display: flex;
+  flex-direction: column;
+  font:
+    14px/1.75 "Microsoft YaHei",
+    system-ui,
+    sans-serif;
+}
+.st-manual > header {
+  background: white;
+  border-bottom: 1px solid #e2e9e4;
+  padding: 16px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.st-manual > header > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.st-manual header span {
+  font-size: 12px;
+  color: #7d8c86;
+}
+.st-manual-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.st-manual nav {
+  width: 260px;
+  flex: none;
+  overflow: auto;
+  background: white;
+  padding: 24px 16px;
+  border-right: 1px solid #e2e9e4;
+}
+.st-manual nav button {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  margin: 2px 0;
+  padding: 9px;
+  font-size: 12px;
+}
+.st-manual nav button span {
+  color: #8b9c91;
+  font-size: 10px;
+  margin-right: 6px;
+}
+.st-manual nav button[aria-current="page"] {
+  background: #e4f0e7;
+  color: #216d55;
+  font-weight: 700;
+}
+.st-manual nav a {
+  display: block;
+  font-size: 12px;
+  color: #24765f;
+  margin: 24px 10px;
+}
+.st-manual-content {
+  flex: 1;
+  overflow: auto;
+  padding: 40px 5vw;
+}
+.st-manual-content article {
+  max-width: 900px;
+  margin: auto;
+}
+.st-manual-content small {
+  color: #789085;
+  letter-spacing: 2px;
+}
+.st-manual-content h1 {
+  font-size: 30px;
+  margin: 8px 0 16px;
+}
+.st-manual-intro {
+  font-size: 16px;
+  color: #61796b;
+  max-width: 760px;
+}
+.st-manual-content ol {
+  padding-left: 26px;
+}
+.st-manual-content li {
+  padding: 8px 0 8px 6px;
+}
+.st-manual-content li::marker {
+  color: #24765f;
+  font-weight: 700;
+}
+.st-manual-content aside {
+  padding: 16px 20px;
+  background: #edf2e8;
+  border-left: 3px solid #8fae94;
+  border-radius: 6px;
+  font-size: 13px;
+  margin: 20px 0;
+}
+.st-manual-demo {
+  margin: 28px 0;
+}
+.st-manual-demo img {
+  display: block;
+  width: 100%;
+  border: 1px solid #dfe8df;
+  border-radius: 10px;
+  margin-top: 12px;
+}
+.st-manual-demo figcaption {
+  font-size: 11px;
+  color: #7d8c86;
+  margin: 7px 0;
+}
+.st-setup-steps {
+  padding-left: 24px;
+}
+.st-setup-steps li {
+  margin: 12px 0;
+  line-height: 1.8;
+}
+.st-setup-links {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.st-setup-links a {
+  color: #24765f;
+}
+.st-setup-note {
+  background: #edf4ef;
+  border-radius: 8px;
+  padding: 12px 16px;
+  line-height: 1.8;
+}
+.st-connection details {
+  margin: 16px 0;
+}
+.st-connection summary {
+  cursor: pointer;
+  color: #24765f;
+}
+@media (max-width: 900px) {
+  .st-manual nav {
+    width: 190px;
+  }
+  .st-manual > header span {
+    display: none;
+  }
+  .st-manual-content {
+    padding: 24px;
+  }
+}

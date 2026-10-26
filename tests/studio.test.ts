@@ -286,3 +286,51 @@ it("撤销重做后保留同一结构的选择，并可继续编辑", () => {
     "rgb(229, 197, 152)",
   );
 });
+it("框选父组件完整包含时只取最大层，部分包含时取内部组件", () => {
+  setup('<section id="outer"><p id="a">甲</p><p id="b">乙</p></section>');
+  const rect = (x: number, y: number, width: number, height: number) => ({
+    x,
+    y,
+    left: x,
+    top: y,
+    right: x + width,
+    bottom: y + height,
+    width,
+    height,
+    toJSON() {},
+  });
+  root.querySelector("#outer")!.getBoundingClientRect = () =>
+    rect(10, 10, 100, 100);
+  root.querySelector("#a")!.getBoundingClientRect = () => rect(20, 20, 80, 30);
+  root.querySelector("#b")!.getBoundingClientRect = () => rect(20, 60, 80, 30);
+  expect(e.boxSelect({ x: 0, y: 0, width: 120, height: 120 })).toEqual([
+    id("#outer"),
+  ]);
+  expect(e.boxSelect({ x: 15, y: 15, width: 90, height: 40 })).toEqual([
+    id("#a"),
+  ]);
+});
+it("框选忽略锁定内容与零尺寸占位且不修改文章或撤销栈", () => {
+  setup(
+    '<p id="a" data-xep-locked="1">甲</p><p id="b">乙</p><section id="empty"></section>',
+  );
+  const rect = {
+    x: 10,
+    y: 10,
+    left: 10,
+    top: 10,
+    right: 90,
+    bottom: 40,
+    width: 80,
+    height: 30,
+    toJSON() {},
+  };
+  root.querySelector("#a")!.getBoundingClientRect = () => rect;
+  root.querySelector("#b")!.getBoundingClientRect = () => rect;
+  const before = root.innerHTML;
+  expect(e.boxSelect({ x: 0, y: 0, width: 100, height: 60 })).toEqual([
+    id("#b"),
+  ]);
+  expect(root.innerHTML).toBe(before);
+  expect(e.canUndo).toBe(false);
+});
