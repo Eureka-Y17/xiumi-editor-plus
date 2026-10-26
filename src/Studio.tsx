@@ -50,15 +50,15 @@ import {
   projectFile,
   type StudioProject,
 } from "./project-store";
-import { type ComponentNode, kindNames } from "./model";
+import { type ComponentNode } from "./model";
 import { ImportDialog } from "./ImportDialog";
 import { exportArticle } from "./importer";
-import { hexColor } from "./appearance";
 import { browser } from "wxt/browser";
 import QRCode from "qrcode";
 import { deliveryContent, wrapArticle, studioCopy } from "./delivery";
 import "./studio.css";
 import { RichTextDialog } from "./RichTextDialog";
+import { StudioProperties } from "./StudioProperties";
 
 const blankProject = (html = starter, title = "未命名图文"): StudioProject => ({
   id: crypto.randomUUID(),
@@ -75,26 +75,6 @@ function download(name: string, text: string, type = "text/html") {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-const fontNames = [
-  "系统默认",
-  "微软雅黑",
-  "苹方",
-  "宋体",
-  "黑体",
-  "楷体",
-  "仿宋",
-  "思源黑体",
-];
-const fonts = [
-  "system-ui,sans-serif",
-  '"Microsoft YaHei",sans-serif',
-  '"PingFang SC",sans-serif',
-  "SimSun,serif",
-  "SimHei,sans-serif",
-  "KaiTi,serif",
-  "FangSong,serif",
-  '"Noto Sans CJK SC",sans-serif',
-];
 export function Studio() {
   const [project, setProject] = useState<StudioProject | null>(null),
     [library, setLibrary] = useState<StudioProject[]>([]),
@@ -130,7 +110,7 @@ export function Studio() {
   const article = useRef<HTMLElement>(null),
     file = useRef<HTMLInputElement>(null),
     imageFile = useRef<HTMLInputElement>(null),
-    textArea = useRef<HTMLTextAreaElement>(null),
+    treeViewport = useRef<HTMLDivElement>(null),
     latest = useRef({ engine, selection }),
     drag = useRef<{
       ids: string[];
@@ -230,6 +210,7 @@ export function Studio() {
     setPreview(false);
   }
   function choose(id: string, multi = false) {
+    setTab("structure");
     setSelection((old) =>
       multi
         ? old.includes(id)
@@ -243,6 +224,39 @@ export function Studio() {
     el = selected ? engine?.element(selected) : null,
     computed = el ? getComputedStyle(el) : null;
   useEffect(() => {
+    if (!selected) return;
+    const parents = new Map<string, string | null>();
+    const visit = (nodes: ComponentNode[]) =>
+      nodes.forEach((n) => {
+        parents.set(n.id, n.parentId);
+        visit(n.children);
+      });
+    visit(tree);
+    setCollapsed((old) => {
+      const next = new Set(old);
+      let current = parents.get(selected);
+      let changed = false;
+      while (current) {
+        changed = next.delete(current) || changed;
+        current = parents.get(current);
+      }
+      return changed ? next : old;
+    });
+  }, [selected, tree]);
+  useLayoutEffect(() => {
+    const viewport = treeViewport.current;
+    const row = selected
+      ? viewport?.querySelector<HTMLElement>(`[data-node-id="${selected}"]`)
+      : null;
+    if (!viewport || !row) return;
+    const outer = viewport.getBoundingClientRect(),
+      inner = row.getBoundingClientRect();
+    if (inner.top < outer.top + 8)
+      viewport.scrollTop += inner.top - outer.top - 8;
+    else if (inner.bottom > outer.bottom - 8)
+      viewport.scrollTop += inner.bottom - outer.bottom + 8;
+  }, [selected, tree, collapsed, tab]);
+  useEffect(() => {
     if (engine && selected) {
       setText(engine.text(selected));
       setLink(
@@ -251,7 +265,7 @@ export function Studio() {
           "",
       );
     } else setText("");
-  }, [selected, engine, formVersion]);
+  }, [selected, engine]);
   useEffect(() => {
     const measure = () => {
       const { engine: e, selection: ids } = latest.current;
@@ -285,7 +299,7 @@ export function Studio() {
   function targetId(target: EventTarget | null, deep = false) {
     if (!(target instanceof Element) || !engine) return null;
     let node = target.closest<HTMLElement>(
-      "img,p,h1,h2,h3,h4,li,blockquote,td,th,[data-xep-group],[data-xep-canvas],section,table",
+      "img,p,h1,h2,h3,h4,li,blockquote,td,th,[data-xep-group],[data-xep-canvas],section,div,table",
     );
     if (!deep) {
       const group = target.closest<HTMLElement>("[data-xep-group]");
@@ -406,31 +420,53 @@ export function Studio() {
   }, [engine, selection]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
+      const mod = event.ctrlKey || event.metaKey;
+      const target = event.target as HTMLElement;
+      const e = latest.current.engine,
+        ids = latest.current.selection;
+      if (!e) return;
+      if (mod && ["z", "y"].includes(event.key.toLowerCase())) {
+        if (
+          target?.closest(
+            '.st-rich-dialog,.import-dialog,[contenteditable],[data-native-undo="true"]',
+          )
+        )
+          return;
+        if (
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement
+        ) {
+          const dirty = target.dataset.editorDirty;
+          if (
+            dirty === "true" ||
+            (dirty === undefined && target.value !== target.defaultValue)
+          )
+            return;
+        }
+        event.preventDefault();
+        run(
+          () =>
+            setSelection(
+              e.undoSelection(
+                ids,
+                event.key.toLowerCase() === "y" || event.shiftKey,
+              ),
+            ),
+          "已撤销 / 重做本次文章修改。",
+        );
+        return;
+      }
       if (
         (event.target as HTMLElement)?.closest(
           "input,textarea,select,[contenteditable]",
         )
       )
         return;
-      const e = latest.current.engine,
-        ids = latest.current.selection;
-      if (!e) return;
-      const mod = event.ctrlKey || event.metaKey;
       const invoke = (fn: () => unknown) => {
         event.preventDefault();
         run(fn);
       };
       if (mod && event.key.toLowerCase() === "s") invoke(() => undefined);
-      else if (mod && event.key.toLowerCase() === "z")
-        invoke(() => {
-          event.shiftKey ? e.redo() : e.undo();
-          setSelection([]);
-        });
-      else if (mod && event.key.toLowerCase() === "y")
-        invoke(() => {
-          e.redo();
-          setSelection([]);
-        });
       else if (mod && event.key.toLowerCase() === "g")
         invoke(() => (event.shiftKey ? e.ungroup(ids[0]) : e.group(ids)));
       else if (mod && event.key.toLowerCase() === "d")
@@ -541,6 +577,7 @@ export function Studio() {
         <React.Fragment key={n.id}>
           <div
             className={`st-layer ${selection.includes(n.id) ? "selected" : ""}`}
+            data-node-id={n.id}
             style={{ paddingLeft: 10 + depth * 14 }}
             draggable
             onDragStart={(e) => {
@@ -654,6 +691,7 @@ export function Studio() {
         </div>
         <input
           className="st-title"
+          data-native-undo="true"
           aria-label="文章标题"
           value={project.title}
           onChange={(e) =>
@@ -693,8 +731,7 @@ export function Studio() {
             disabled={!engine?.canUndo}
             onClick={() =>
               run(() => {
-                engine!.undo();
-                setSelection([]);
+                setSelection(engine!.undoSelection(selection));
               })
             }
           >
@@ -706,8 +743,7 @@ export function Studio() {
             disabled={!engine?.canRedo}
             onClick={() =>
               run(() => {
-                engine!.redo();
-                setSelection([]);
+                setSelection(engine!.undoSelection(selection, true));
               })
             }
           >
@@ -791,15 +827,55 @@ export function Studio() {
         </div>
         <div className="st-ribbon-set">
           <button
-            disabled={!selection.length}
-            onClick={() => run(() => engine!.layer(selection, "front"))}
+            disabled={!engine?.orderCapability(selection, "up").allowed}
+            title={engine?.orderCapability(selection, "up").reason}
+            onClick={() =>
+              run(() => {
+                const ids = engine!.order(selection, "up");
+                setSelection(ids);
+              }, "已向文章前方移动整块内容。")
+            }
+          >
+            <ArrowUp size={17} />
+            <span>向前移动</span>
+          </button>
+          <button
+            disabled={!engine?.orderCapability(selection, "down").allowed}
+            title={engine?.orderCapability(selection, "down").reason}
+            onClick={() =>
+              run(() => {
+                const ids = engine!.order(selection, "down");
+                setSelection(ids);
+              }, "已向文章后方移动整块内容。")
+            }
+          >
+            <ArrowDown size={17} />
+            <span>向后移动</span>
+          </button>
+        </div>
+        <div className="st-ribbon-set">
+          <button
+            disabled={!engine?.layerCapability(selection, "front").allowed}
+            title={engine?.layerCapability(selection, "front").reason}
+            onClick={() =>
+              run(
+                () => engine!.layer(selection, "front"),
+                "已调整前后遮挡；文章上下位置不变。",
+              )
+            }
           >
             <BringToFront size={17} />
             <span>置顶</span>
           </button>
           <button
-            disabled={!selection.length}
-            onClick={() => run(() => engine!.layer(selection, "back"))}
+            disabled={!engine?.layerCapability(selection, "back").allowed}
+            title={engine?.layerCapability(selection, "back").reason}
+            onClick={() =>
+              run(
+                () => engine!.layer(selection, "back"),
+                "已调整前后遮挡；文章上下位置不变。",
+              )
+            }
           >
             <SendToBack size={17} />
             <span>置底</span>
@@ -863,7 +939,9 @@ export function Studio() {
                 <br />
                 Alt 拖放可移入容器；父子关系与遮挡顺序分别调整。
               </div>
-              <div className="st-tree">{rows(tree)}</div>
+              <div className="st-tree" ref={treeViewport}>
+                {rows(tree)}
+              </div>
             </>
           ) : (
             <div className="st-insert-grid">
@@ -938,553 +1016,20 @@ export function Studio() {
             <div className="st-paper-foot">XIUMI PLUS / LOCAL STUDIO</div>
           </div>
         </main>
-        <aside className="st-properties">
-          <div className="st-prop-heading">
-            <span>组件属性</span>
-            <small>
-              {selection.length
-                ? `已选择 ${selection.length} 项`
-                : "选择一个组件"}
-            </small>
-          </div>
-          {el && engine ? (
-            <div className="st-prop-scroll" key={`${selected}-${formVersion}`}>
-              <label className="st-field">
-                名称
-                <input
-                  aria-label="组件名称"
-                  defaultValue={el.dataset.label ?? ""}
-                  placeholder={
-                    kindNames[
-                      tree.find((n) => n.id === selected)?.kind ?? "layout"
-                    ]
-                  }
-                  onBlur={(e) => {
-                    if (
-                      e.target.value !== el.dataset.label &&
-                      e.target.value.trim()
-                    )
-                      run(() => engine.rename(selected, e.target.value));
-                  }}
-                />
-              </label>
-              <div className="st-position-mode">
-                {el.parentElement?.hasAttribute("data-xep-canvas") ? (
-                  <>
-                    <Move size={14} />
-                    叠放画布内 · 自由移动
-                  </>
-                ) : (
-                  <>
-                    <GripVertical size={14} />
-                    普通图文 · 拖动改变阅读顺序
-                  </>
-                )}
-              </div>
-              <h3>层次与位置</h3>
-              <div className="st-button-grid">
-                <button
-                  onClick={() => run(() => engine.layer(selection, "up"))}
-                >
-                  <ArrowUp size={14} />
-                  上移一层
-                </button>
-                <button
-                  onClick={() => run(() => engine.layer(selection, "down"))}
-                >
-                  <ArrowDown size={14} />
-                  下移一层
-                </button>
-                <button
-                  onClick={() => run(() => engine.layer(selection, "front"))}
-                >
-                  置于顶层
-                </button>
-                <button
-                  onClick={() => run(() => engine.layer(selection, "back"))}
-                >
-                  置于底层
-                </button>
-              </div>
-              <p className="st-help">
-                前后层级作用于同一父容器。需要重叠时，将容器转换为叠放画布。
-              </p>
-              {el.parentElement?.hasAttribute("data-xep-canvas") && (
-                <div className="st-two">
-                  {(["left", "top"] as const).map((axis, i) => (
-                    <label key={axis}>
-                      {i ? "Y" : "X"}
-                      <input
-                        aria-label={i ? "Y 坐标" : "X 坐标"}
-                        type="number"
-                        defaultValue={parseFloat(el.style[axis]) || 0}
-                        onBlur={(e) => {
-                          const x = i
-                              ? parseFloat(el.style.left) || 0
-                              : Number(e.target.value),
-                            y = i
-                              ? Number(e.target.value)
-                              : parseFloat(el.style.top) || 0;
-                          run(() => engine.position(selected, x, y));
-                        }}
-                      />
-                    </label>
-                  ))}
-                </div>
-              )}
-              <div className="st-two">
-                <label>
-                  宽度
-                  <input
-                    aria-label="组件宽度"
-                    defaultValue={el.style.width || "auto"}
-                    onBlur={(e) => style("width", e.target.value)}
-                  />
-                </label>
-                <label>
-                  高度
-                  <input
-                    aria-label="组件高度"
-                    defaultValue={el.style.height || "auto"}
-                    onBlur={(e) => style("height", e.target.value)}
-                  />
-                </label>
-              </div>
-              <div className="st-button-grid">
-                {[
-                  "左对齐",
-                  "水平居中",
-                  "右对齐",
-                  "顶对齐",
-                  "垂直居中",
-                  "底对齐",
-                ].map((name, i) => (
-                  <button
-                    key={name}
-                    onClick={() =>
-                      run(() =>
-                        engine.align(
-                          selection,
-                          (
-                            [
-                              "left",
-                              "center",
-                              "right",
-                              "top",
-                              "middle",
-                              "bottom",
-                            ] as const
-                          )[i],
-                        ),
-                      )
-                    }
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-              {el.matches("section,div") && (
-                <div className="st-button-grid">
-                  <button
-                    onClick={() =>
-                      run(
-                        () => engine.canvas(selected),
-                        "已转换为叠放画布，可自由拖动内部所有组件。",
-                      )
-                    }
-                  >
-                    转换叠放画布
-                  </button>
-                  <button
-                    onClick={() =>
-                      run(() => engine.flow(selected), "已恢复普通阅读流。")
-                    }
-                  >
-                    恢复普通布局
-                  </button>
-                </div>
-              )}
-              {el.matches("section,div") && (
-                <>
-                  <h3>容器布局</h3>
-                  <div className="st-button-grid">
-                    <button onClick={() => style("display", "block")}>
-                      纵向排列
-                    </button>
-                    <button
-                      onClick={() =>
-                        run(() =>
-                          engine.style(selection, {
-                            display: "flex",
-                            gap: "12px",
-                          }),
-                        )
-                      }
-                    >
-                      横向排列
-                    </button>
-                    <button
-                      onClick={() =>
-                        run(() =>
-                          engine.style(selection, {
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
-                            gap: "12px",
-                          }),
-                        )
-                      }
-                    >
-                      双列网格
-                    </button>
-                    <button
-                      onClick={() =>
-                        run(() =>
-                          engine.style(selection, {
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr 1fr",
-                            gap: "12px",
-                          }),
-                        )
-                      }
-                    >
-                      三列网格
-                    </button>
-                  </div>
-                  <label className="st-field">
-                    组件间距
-                    <input
-                      aria-label="组件间距"
-                      defaultValue={el.style.gap || "12px"}
-                      onBlur={(e) => style("gap", e.target.value)}
-                    />
-                  </label>
-                </>
-              )}
-              <h3>颜色与外观</h3>
-              <div className="st-color-row">
-                {(["backgroundColor", "color", "borderColor"] as const).map(
-                  (key, i) => (
-                    <label key={key}>
-                      {["背景", "文字", "边框"][i]}
-                      <input
-                        aria-label={["背景颜色", "文字颜色", "边框颜色"][i]}
-                        type="color"
-                        defaultValue={hexColor(
-                          computed?.[key] ?? "",
-                          i ? "#263d36" : "#ffffff",
-                        )}
-                        onChange={(e) => style(key, e.target.value)}
-                      />
-                    </label>
-                  ),
-                )}
-              </div>
-              <div className="st-two">
-                <label>
-                  内边距
-                  <input
-                    aria-label="内边距"
-                    defaultValue={el.style.padding || "0px"}
-                    onBlur={(e) => style("padding", e.target.value)}
-                  />
-                </label>
-                <label>
-                  外边距
-                  <input
-                    aria-label="外边距"
-                    defaultValue={el.style.margin || "0px"}
-                    onBlur={(e) => style("margin", e.target.value)}
-                  />
-                </label>
-                <label>
-                  圆角
-                  <input
-                    aria-label="圆角"
-                    defaultValue={el.style.borderRadius || "0px"}
-                    onBlur={(e) => style("borderRadius", e.target.value)}
-                  />
-                </label>
-                <label>
-                  边框宽度
-                  <input
-                    aria-label="边框宽度"
-                    defaultValue={el.style.borderWidth || "0px"}
-                    onBlur={(e) => {
-                      if (engine)
-                        run(() =>
-                          engine.style(selection, {
-                            borderWidth: e.target.value,
-                            borderStyle: "solid",
-                          }),
-                        );
-                    }}
-                  />
-                </label>
-                <label>
-                  透明度
-                  <input
-                    aria-label="透明度"
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    defaultValue={computed?.opacity || 1}
-                    onBlur={(e) => style("opacity", e.target.value)}
-                  />
-                </label>
-                <label>
-                  旋转角度
-                  <input
-                    aria-label="旋转角度"
-                    type="number"
-                    defaultValue={
-                      parseFloat(el.style.transform.replace("rotate(", "")) || 0
-                    }
-                    onBlur={(e) =>
-                      style(
-                        "transform",
-                        `rotate(${Number(e.target.value) || 0}deg)`,
-                      )
-                    }
-                  />
-                </label>
-              </div>
-              {computed?.backgroundImage !== "none" &&
-                computed?.backgroundImage && (
-                  <button
-                    className="st-wide"
-                    onClick={() => style("backgroundImage", "none")}
-                  >
-                    移除背景图 / 渐变
-                  </button>
-                )}
-              {engine.propertyCapability(selected, "text").allowed && (
-                <>
-                  <h3>文字排版</h3>
-                  <button
-                    className="st-wide"
-                    onClick={() => setRichId(selected)}
-                  >
-                    直接编辑文字与选区格式
-                  </button>
-                  <select
-                    aria-label="字体"
-                    defaultValue={el.style.fontFamily || fonts[0]}
-                    onChange={(e) => style("fontFamily", e.target.value)}
-                  >
-                    {fonts.map((f, i) => (
-                      <option key={f} value={f}>
-                        {fontNames[i]}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="st-two">
-                    <label>
-                      字号
-                      <input
-                        aria-label="字号"
-                        type="number"
-                        defaultValue={parseFloat(computed?.fontSize || "16")}
-                        onBlur={(e) =>
-                          style("fontSize", `${Number(e.target.value) || 16}px`)
-                        }
-                      />
-                    </label>
-                    <label>
-                      行高
-                      <input
-                        aria-label="行高"
-                        defaultValue={el.style.lineHeight || "1.8"}
-                        onBlur={(e) => style("lineHeight", e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      字间距
-                      <input
-                        aria-label="字间距"
-                        defaultValue={el.style.letterSpacing || "0px"}
-                        onBlur={(e) => style("letterSpacing", e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      首行缩进
-                      <input
-                        aria-label="首行缩进"
-                        defaultValue={el.style.textIndent || "0em"}
-                        onBlur={(e) => style("textIndent", e.target.value)}
-                      />
-                    </label>
-                  </div>
-                  <div className="st-button-grid">
-                    <button
-                      onClick={() =>
-                        style(
-                          "fontWeight",
-                          computed?.fontWeight === "700" ? "400" : "700",
-                        )
-                      }
-                    >
-                      <b>B 加粗</b>
-                    </button>
-                    <button
-                      onClick={() =>
-                        style(
-                          "fontStyle",
-                          computed?.fontStyle === "italic"
-                            ? "normal"
-                            : "italic",
-                        )
-                      }
-                    >
-                      <i>I 斜体</i>
-                    </button>
-                    <button
-                      onClick={() =>
-                        style(
-                          "textDecoration",
-                          computed?.textDecorationLine.includes("underline")
-                            ? "none"
-                            : "underline",
-                        )
-                      }
-                    >
-                      <u>U 下划线</u>
-                    </button>
-                    <button
-                      onClick={() => style("textDecoration", "line-through")}
-                    >
-                      删除线
-                    </button>
-                  </div>
-                  <div className="st-button-grid">
-                    {["left", "center", "right", "justify"].map((v, i) => (
-                      <button key={v} onClick={() => style("textAlign", v)}>
-                        {["左对齐", "居中", "右对齐", "两端对齐"][i]}
-                      </button>
-                    ))}
-                  </div>
-                  <label className="st-field">
-                    段落内容
-                    <textarea
-                      ref={textArea}
-                      aria-label="段落文字"
-                      value={text}
-                      rows={5}
-                      onChange={(e) => setText(e.target.value)}
-                    />
-                  </label>
-                  <button
-                    className="st-primary st-wide"
-                    onClick={() =>
-                      run(
-                        () => engine.setText(selected, text),
-                        "段落文字已更新。",
-                      )
-                    }
-                  >
-                    应用文字
-                  </button>
-                  <p className="st-help">
-                    保留未修改部分的链接和格式。跨格式修改后请检查。
-                  </p>
-                </>
-              )}
-              {el.tagName === "IMG" && (
-                <>
-                  <h3>图片</h3>
-                  <button
-                    className="st-wide"
-                    onClick={() => {
-                      const input = document.createElement("input");
-                      input.type = "file";
-                      input.accept =
-                        "image/png,image/jpeg,image/gif,image/webp";
-                      input.onchange = () => {
-                        const f = input.files?.[0];
-                        if (!f || f.size > 10_000_000) return;
-                        const reader = new FileReader();
-                        reader.onload = () =>
-                          run(() =>
-                            engine.replaceImage(
-                              selected,
-                              reader.result as string,
-                            ),
-                          );
-                        reader.readAsDataURL(f);
-                      };
-                      input.click();
-                    }}
-                  >
-                    替换所选图片
-                  </button>
-                  <select
-                    aria-label="图片裁切"
-                    defaultValue={el.style.objectFit || "contain"}
-                    onChange={(e) => style("objectFit", e.target.value)}
-                  >
-                    <option value="contain">完整显示</option>
-                    <option value="cover">填满裁切</option>
-                    <option value="fill">拉伸填充</option>
-                  </select>
-                </>
-              )}
-              <h3>链接</h3>
-              <label className="st-field">
-                <input
-                  aria-label="链接地址"
-                  placeholder="https://…"
-                  value={link}
-                  onChange={(e) => setLink(e.target.value)}
-                />
-              </label>
-              <button
-                className="st-wide"
-                onClick={() => run(() => engine.link(selected, link))}
-              >
-                <LinkIcon size={13} />
-                应用链接（留空移除）
-              </button>
-              <h3>结构操作</h3>
-              <div className="st-button-grid">
-                <button
-                  disabled={!engine.capability(selected, "promote").allowed}
-                  onClick={() => run(() => engine.execute(selected, "promote"))}
-                >
-                  提升到父层
-                </button>
-                <button
-                  disabled={!engine.capability(selected, "unwrap").allowed}
-                  onClick={() => {
-                    if (
-                      confirm(
-                        "拆分外壳会移除它的背景、边框与间距。是否保留内部内容并继续？",
-                      )
-                    )
-                      run(() => engine.execute(selected, "unwrap"));
-                  }}
-                >
-                  拆分外壳
-                </button>
-              </div>
-              <p className="st-help">
-                字体取决于设备；SVG 互动组件仅保留预览，暂不拆解。
-              </p>
-            </div>
-          ) : (
-            <div className="st-empty">
-              <MousePointer2 size={32} />
-              <h3>先选择，再精修</h3>
-              <p>
-                点击正文、图片或背景板。
-                <br />
-                按住 Ctrl / ⌘ 可以多选组合。
-              </p>
-              <button onClick={() => run(() => engine!.insert("canvas"))}>
-                插入叠放画布体验图层
-              </button>
-            </div>
-          )}
-        </aside>
+        {engine && (
+          <StudioProperties
+            engine={engine}
+            selection={selection}
+            version={formVersion}
+            run={run}
+            onChoose={choose}
+            text={text}
+            onText={setText}
+            link={link}
+            onLink={setLink}
+            onRichEdit={setRichId}
+          />
+        )}
       </div>
       <footer className="st-status" role="status">
         <span className="st-dot" />
@@ -1551,7 +1096,10 @@ export function Studio() {
           html={engine.element(richId)!.innerHTML}
           onClose={() => setRichId(null)}
           onApply={(html) => {
-            run(() => engine.setRichText(richId, html));
+            run(() => {
+              engine.setRichText(richId, html);
+              setText(engine.text(richId));
+            });
             setRichId(null);
           }}
         />

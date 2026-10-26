@@ -4,6 +4,7 @@ import { prepareImportedRoot } from "./importer";
 import { cleanInlineHtml } from "./rich-text";
 
 export type InsertKind =
+  | "blank"
   | "text"
   | "heading"
   | "quote"
@@ -36,6 +37,7 @@ export function cleanStudioHtml(html: string) {
   });
 }
 const templates: Record<InsertKind, string> = {
+  blank: '<p data-label="空行" style="min-height:1.8em;margin:12px 0"><br></p>',
   text: '<p style="line-height:1.8">在这里写下新的段落。</p>',
   heading: '<h2 style="font-size:24px;line-height:1.5">新的章节标题</h2>',
   quote:
@@ -91,27 +93,61 @@ export class StudioEngine extends EditorAdapter {
           : 1,
       );
   }
-  insert(kind: InsertKind, after?: string) {
+  insert(
+    kind: InsertKind,
+    after?: string,
+    placement: "before" | "after" | "inside" = "after",
+  ) {
     const fragment = document.createElement("div");
     fragment.innerHTML = templates[kind];
-    return this.insertNode(fragment.firstElementChild as HTMLElement, after);
+    return this.insertNode(
+      fragment.firstElementChild as HTMLElement,
+      after,
+      placement,
+    );
   }
-  private insertNode(el: HTMLElement, after?: string) {
+  /** Return a vertical insertion slot outside text and horizontal template shells. */
+  flowAnchor(picked: HTMLElement) {
+    let target = picked;
+    for (
+      let cursor: HTMLElement | null = picked;
+      cursor && cursor !== this.root;
+      cursor = cursor.parentElement
+    ) {
+      const s = getComputedStyle(cursor);
+      if (
+        cursor.matches("p,h1,h2,h3,h4,blockquote,ul,ol,table") ||
+        cursor.hasAttribute("data-xep-canvas") ||
+        ["grid", "inline-grid", "table", "inline-table"].includes(s.display) ||
+        (["flex", "inline-flex"].includes(s.display) &&
+          !s.flexDirection.startsWith("column"))
+      )
+        target = cursor;
+    }
+    return target;
+  }
+  private insertNode(
+    el: HTMLElement,
+    after?: string,
+    placement: "before" | "after" | "inside" = "after",
+  ) {
     const picked = after ? this.element(after) : undefined;
-    const target = picked?.closest("td,th,tr")
-      ? (picked.closest("table") as HTMLElement)
-      : picked;
+    const target = picked
+      ? placement === "inside"
+        ? picked
+        : this.flowAnchor(picked)
+      : undefined;
+    if (after && !picked) throw new Error("所选组件已失效，请重新选择。");
     const cap = this.editable(target ?? this.root, true);
     if (!cap.allowed && target) throw new Error(cap.reason);
     const rootCap = this.editable(this.root, true);
     if (!rootCap.allowed) throw new Error(rootCap.reason);
     if (target?.closest('[data-xep-locked="1"]'))
       throw new Error("组件已锁定，请先解锁。");
+    if (placement === "inside" && (!target || !target.matches("section,div")))
+      throw new Error("请先选择布局或叠放画布。");
     this.transact(() => {
-      if (
-        target?.hasAttribute("data-xep-canvas") &&
-        !el.hasAttribute("data-xep-canvas")
-      ) {
+      if (placement === "inside" && target?.hasAttribute("data-xep-canvas")) {
         Object.assign(el.style, {
           position: "absolute",
           left: "30px",
@@ -120,20 +156,91 @@ export class StudioEngine extends EditorAdapter {
           zIndex: String(target.children.length),
         });
         target.append(el);
-      } else if (target?.parentElement?.hasAttribute("data-xep-canvas")) {
-        Object.assign(el.style, {
-          position: "absolute",
-          left: "30px",
-          top: "30px",
-          width: "220px",
-          zIndex: String(target.parentElement.children.length),
-        });
-        target.after(el);
-      } else if (target) target.after(el);
+      } else if (placement === "inside") target!.append(el);
+      else if (target)
+        placement === "before" ? target.before(el) : target.after(el);
       else this.root.append(el);
     });
     this.tree();
     return this.idFor(el)!;
+  }
+  orderCapability(ids: string[], direction: "up" | "down") {
+    try {
+      const targets = [
+        ...new Set(this.topNodes(ids).map((n) => this.flowAnchor(n))),
+      ];
+      const parent = targets[0].parentElement;
+      if (targets.some((n) => n.parentElement !== parent))
+        return { allowed: false, reason: "请选择同一文章容器中的组件。" };
+      const boundary =
+        direction === "up"
+          ? targets[0].previousElementSibling
+          : targets[targets.length - 1].nextElementSibling;
+      if (!boundary)
+        return {
+          allowed: false,
+          reason:
+            direction === "up"
+              ? "已经是当前容器的第一项。"
+              : "已经是当前容器的最后一项。",
+        };
+      if (
+        !this.editable(boundary as HTMLElement).allowed ||
+        (boundary as HTMLElement).closest('[data-xep-locked="1"]')
+      )
+        return { allowed: false, reason: "不能跨过锁定或特殊组件。" };
+      return { allowed: true, reason: "沿文章阅读顺序移动，不改变前后遮挡。" };
+    } catch (e) {
+      return { allowed: false, reason: (e as Error).message };
+    }
+  }
+  order(ids: string[], direction: "up" | "down") {
+    const cap = this.orderCapability(ids, direction);
+    if (!cap.allowed) throw new Error(cap.reason);
+    const targets = [
+      ...new Set(this.topNodes(ids).map((n) => this.flowAnchor(n))),
+    ];
+    for (const n of targets) {
+      const check = this.editable(n);
+      if (!check.allowed || n.closest('[data-xep-locked="1"]'))
+        throw new Error(check.reason || "外层组件已锁定。");
+    }
+    const parent = targets[0].parentElement!;
+    this.transact(() => {
+      if (direction === "up") {
+        const before = targets[0].previousElementSibling!;
+        for (const n of targets) parent.insertBefore(n, before);
+      } else {
+        const after =
+          targets[targets.length - 1].nextElementSibling!.nextSibling;
+        for (const n of targets) parent.insertBefore(n, after);
+      }
+    });
+    this.tree();
+    return targets.map((n) => this.idFor(n)!);
+  }
+  undoSelection(ids: string[], redo = false) {
+    const paths = ids.flatMap((id) => {
+      const node = this.element(id);
+      if (!node) return [];
+      const path: number[] = [];
+      let current: HTMLElement | null = node;
+      while (current && current !== this.root) {
+        path.unshift(
+          Array.from(current.parentElement!.children).indexOf(current),
+        );
+        current = current.parentElement;
+      }
+      return [path];
+    });
+    redo ? super.redo() : super.undo();
+    this.tree();
+    return paths.flatMap((path) => {
+      let node: Element | null = this.root;
+      for (const index of path) node = node?.children.item(index) ?? null;
+      const id = node ? this.idFor(node) : null;
+      return id ? [id] : [];
+    });
   }
 
   setRichText(id: string, html: string) {
@@ -453,7 +560,74 @@ export class StudioEngine extends EditorAdapter {
       y - (parseFloat(el.style.top) || 0),
     );
   }
+  layerCapability(ids: string[], action: "up" | "down" | "front" | "back") {
+    try {
+      const nodes = this.topNodes(ids, false),
+        parent = nodes[0].parentElement!;
+      if (nodes.some((n) => n.parentElement !== parent))
+        return { allowed: false, reason: "请先选择同一父容器里的组件。" };
+      const siblings = Array.from(parent.children) as HTMLElement[];
+      if (siblings.length < 2)
+        return {
+          allowed: false,
+          reason: "当前父容器里没有其他组件可调整遮挡。",
+        };
+      if (
+        siblings.some(
+          (n) =>
+            !this.editable(n, true).allowed ||
+            n.closest('[data-xep-locked="1"]'),
+        )
+      )
+        return {
+          allowed: false,
+          reason: "同级包含锁定或特殊组件，不能调整遮挡。",
+        };
+      const overlap = nodes.some((n) => {
+        const a = n.getBoundingClientRect();
+        return siblings.some((other) => {
+          if (other === n) return false;
+          const b = other.getBoundingClientRect();
+          return (
+            a.width > 0 &&
+            a.height > 0 &&
+            b.width > 0 &&
+            b.height > 0 &&
+            Math.min(a.right, b.right) > Math.max(a.left, b.left) &&
+            Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top)
+          );
+        });
+      });
+      if (!parent.hasAttribute("data-xep-canvas") && !overlap)
+        return {
+          allowed: false,
+          reason:
+            "普通图文没有重叠，前后遮挡不会改变上下位置；请使用“向前移动 / 向后移动”。",
+        };
+      const order = siblings
+        .map((n, i) => ({ n, i, z: Number(getComputedStyle(n).zIndex) || 0 }))
+        .sort((a, b) => a.z - b.z || a.i - b.i)
+        .map((v) => v.n);
+      const edge =
+        action === "up" || action === "front"
+          ? order.slice(-nodes.length)
+          : order.slice(0, nodes.length);
+      if (edge.every((n) => nodes.includes(n)))
+        return {
+          allowed: false,
+          reason:
+            action === "up" || action === "front"
+              ? "已在当前父层的最上方。"
+              : "已在当前父层的最下方。",
+        };
+      return { allowed: true, reason: "只改变遮挡顺序，不移动文章位置。" };
+    } catch (e) {
+      return { allowed: false, reason: (e as Error).message };
+    }
+  }
   layer(ids: string[], action: "up" | "down" | "front" | "back") {
+    const cap = this.layerCapability(ids, action);
+    if (!cap.allowed) throw new Error(cap.reason);
     const nodes = this.topNodes(ids, false);
     const parent = nodes[0].parentElement;
     if (nodes.some((n) => n.parentElement !== parent))
@@ -495,17 +669,72 @@ export class StudioEngine extends EditorAdapter {
       }),
     );
   }
+  alignmentCapability(
+    ids: string[],
+    axis: "left" | "center" | "right" | "top" | "middle" | "bottom",
+  ) {
+    try {
+      const nodes = this.topNodes(ids, false),
+        parent = nodes[0].parentElement!;
+      if (nodes.some((n) => n.parentElement !== parent))
+        return { allowed: false, reason: "请先选择同一个父容器内的组件。" };
+      if (parent.hasAttribute("data-xep-canvas"))
+        return {
+          allowed: true,
+          reason: "以父画布的边缘或中心为参照，移动整个组件。",
+        };
+      if (["top", "middle", "bottom"].includes(axis))
+        return {
+          allowed: false,
+          reason: "普通文章沿上下方向自然排版；垂直对齐需要叠放画布。",
+        };
+      const parentStyle = getComputedStyle(parent),
+        available =
+          parent.clientWidth -
+          (parseFloat(parentStyle.paddingLeft) || 0) -
+          (parseFloat(parentStyle.paddingRight) || 0);
+      if (
+        available > 0 &&
+        nodes.every((n) => n.getBoundingClientRect().width >= available - 1)
+      )
+        return {
+          allowed: false,
+          reason:
+            "组件已占满父容器宽度，没有可见的左右移动空间；请先减小组件宽度。文字对齐请到“文字”分类设置。",
+        };
+      return {
+        allowed: true,
+        reason: "相对于父容器对齐整个组件；不改变文字段落的对齐方式。",
+      };
+    } catch (e) {
+      return { allowed: false, reason: (e as Error).message };
+    }
+  }
   align(
     ids: string[],
     axis: "left" | "center" | "right" | "top" | "middle" | "bottom",
   ) {
-    const nodes = this.topNodes(ids);
+    const cap = this.alignmentCapability(ids, axis);
+    if (!cap.allowed) throw new Error(cap.reason);
+    const nodes = this.topNodes(ids, false);
     const parent = nodes[0].parentElement!;
-    if (
-      nodes.some((n) => n.parentElement !== parent) ||
-      !parent.hasAttribute("data-xep-canvas")
-    )
-      throw new Error("请选择同一叠放画布中的组件。");
+    if (!parent.hasAttribute("data-xep-canvas")) {
+      this.transact(() =>
+        nodes.forEach((n) => {
+          const s = getComputedStyle(n);
+          if (
+            ["grid", "inline-grid"].includes(getComputedStyle(parent).display)
+          )
+            n.style.justifySelf =
+              axis === "left" ? "start" : axis === "right" ? "end" : "center";
+          else if (["inline", "inline-block"].includes(s.display))
+            n.style.display = "block";
+          n.style.marginLeft = axis === "left" ? "0px" : "auto";
+          n.style.marginRight = axis === "right" ? "0px" : "auto";
+        }),
+      );
+      return;
+    }
     this.transact(() =>
       nodes.forEach((n) => {
         if (["left", "center", "right"].includes(axis))

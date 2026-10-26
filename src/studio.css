@@ -802,3 +802,137 @@
   justify-content: flex-end;
   margin-top: 20px;
 }
+
+/* Property categories replace the long scrolling inspector. */
+.st-prop-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+  background: #fbfcfa;
+}
+.studio .st-prop-tabs button {
+  font-size: 11px;
+  border: 0;
+  border-radius: 5px;
+  padding: 7px 3px;
+  background: none;
+}
+.studio .st-prop-tabs button[aria-selected="true"] {
+  background: #e4f0e7;
+  color: #1f7056;
+  font-weight: 700;
+}
+.st-prop-page {
+  padding: 12px 16px;
+  min-height: 0;
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+}
+.st-prop-page h3 {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6c8276;
+  margin: 15px 0 9px;
+  padding-top: 10px;
+  border-top: 1px solid #edf1eb;
+}
+.st-prop-page h3:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.st-prop-page label {
+  display: block;
+  font-size: 10px;
+  color: #85978a;
+}
+.st-prop-page input,
+.st-prop-page select,
+.st-prop-page textarea {
+  font-size: 12px;
+  max-width: 100%;
+}
+.st-prop-page select {
+  width: 100%;
+  display: block;
+  margin: 5px 0 8px;
+}
+.st-prop-page textarea {
+  line-height: 1.65;
+  resize: none;
+  min-height: 118px;
+}
+.st-prop-page .st-help {
+  font-size: 10px;
+  line-height: 1.65;
+  margin: 7px 0 10px;
+}
+.st-prop-page .st-button-grid {
+  margin: 7px 0;
+  gap: 5px;
+}
+.st-prop-page .st-position-mode {
+  margin: 7px 0;
+  font-size: 10px;
+}
+.st-prop-page .st-wide {
+  margin: 6px 0;
+}
+.st-text-tabs,
+.st-color-target {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.studio .st-text-tabs button,
+.studio .st-color-target button {
+  font-size: 11px;
+  flex: 1;
+  padding: 7px 4px;
+}
+.st-text-tabs button[aria-selected="true"],
+.st-color-target button[aria-pressed="true"] {
+  background: #e4f0e7;
+  border-color: #b4cfbd;
+  color: #24765f;
+}
+.st-palette-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+.st-palette-input input[type="color"] {
+  width: 55px;
+  height: 36px;
+  padding: 3px;
+  flex: none;
+}
+.st-palette-input input:not([type="color"]) {
+  width: 100%;
+  font-family: monospace;
+}
+.st-classics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 12px 0;
+}
+.studio .st-classics button {
+  height: 32px;
+  border-radius: 7px;
+  border: 1px solid #c8d5ca;
+  box-shadow: inset 0 0 0 2px #ffffff55;
+}
+.studio .st-classics button:hover {
+  outline: 2px solid #24765f;
+  outline-offset: 2px;
+}
+.st-prop-page .st-field textarea {
+  width: 100%;
+  padding: 9px;
+}

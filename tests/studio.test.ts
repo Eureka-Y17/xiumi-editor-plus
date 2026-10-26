@@ -35,7 +35,7 @@ it("组合拒绝跨父层，拖动拒绝循环与画布跨界，不产生部分�
 });
 it("任何普通文字与背景都能调整同级遮挡次序，并撤销", () => {
   setup(
-    '<section><p id="a">文字</p><section id="b" style="background-color:red;height:20px"></section></section>',
+    '<section data-xep-canvas="1"><p id="a">文字</p><section id="b" style="background-color:red;height:20px"></section></section>',
   );
   e.layer([id("#a")], "front");
   expect(root.querySelector<HTMLElement>("#a")!.style.zIndex).toBe("1");
@@ -158,7 +158,7 @@ it("选中的画布可直接接收新文字，图片链接不会破坏画布定�
   setup(
     '<section id="canvas" data-xep-canvas="1"><img id="pic" src="a.png" style="position:absolute;left:20px;top:30px;width:120px;height:90px"></section>',
   );
-  e.insert("text", id("#canvas"));
+  e.insert("text", id("#canvas"), "inside");
   expect(root.querySelector("#canvas")!.children).toHaveLength(2);
   e.link(id("#pic"), "https://example.com");
   e.tree();
@@ -176,4 +176,81 @@ it("富文本选区格式保留换行且清理执行内容", () => {
   expect(e.text(id("#a"))).toBe("第一行\n第二行\n第三行");
   expect(root.querySelector("#a b")).not.toBeNull();
   expect(root.querySelector("script")).toBeNull();
+});
+
+it("文字默认跳出横向模板在下方插入，不拆坏推荐语容器", () => {
+  setup(
+    '<section id="book"><img src="a.png"><section id="row" style="display:flex"><section id="a" style="width:100%;border:1px solid red"><h3>推荐语</h3><p>长段落</p></section><span>装饰</span></section></section>',
+  );
+  const before = root.querySelector("#a")!.outerHTML;
+  const inserted = e.insert("text", id("#a"));
+  expect(e.element(inserted)!.parentElement!.id).toBe("book");
+  expect(root.querySelector("#row")!.nextElementSibling).toBe(
+    e.element(inserted),
+  );
+  expect(root.querySelector("#a")!.outerHTML).toBe(before);
+  e.undo();
+  expect(root.querySelector("#a")!.outerHTML).toBe(before);
+  expect(root.querySelector("#row")!.children).toHaveLength(2);
+});
+it("前插后插空行均在横向块外，默认画布插入也落入文流", () => {
+  setup(
+    '<section id="row" style="display:grid;grid-template-columns:1fr 1fr"><p id="a">甲</p><p>乙</p></section><section id="canvas" data-xep-canvas="1"><p id="inside" style="position:absolute">画布</p></section>',
+  );
+  const before = e.insert("blank", id("#a"), "before");
+  const after = e.insert("blank", id("#a"), "after");
+  expect(root.querySelector("#row")!.previousElementSibling).toBe(
+    e.element(before),
+  );
+  expect(root.querySelector("#row")!.nextElementSibling).toBe(e.element(after));
+  const text = e.insert("text", id("#inside"));
+  expect(root.querySelector("#canvas")!.nextElementSibling).toBe(
+    e.element(text),
+  );
+  expect(e.element(text)!.style.position).toBe("");
+});
+it("前后移动恢复文章顺序，选中横排内部时移动整块", () => {
+  setup(
+    '<p id="first">首段</p><section id="row" style="display:flex"><section id="a"><p>推荐语</p></section></section><p id="last">末段</p>',
+  );
+  e.order([id("#a")], "up");
+  expect(root.firstElementChild!.id).toBe("row");
+  expect(e.orderCapability([id("#a")], "up").allowed).toBe(false);
+  e.order([id("#a")], "down");
+  expect(root.children[1].id).toBe("row");
+  e.undo();
+  expect(root.firstElementChild!.id).toBe("row");
+});
+it("普通无重叠内容禁用遮挡按钮，说明应该移动阅读顺序", () => {
+  setup('<p id="a">甲</p><p id="b">乙</p>');
+  const cap = e.layerCapability([id("#a")], "up");
+  expect(cap.allowed).toBe(false);
+  expect(cap.reason).toContain("向前移动");
+  const original = root.innerHTML;
+  expect(() => e.layer([id("#a")], "up")).toThrow("普通图文");
+  expect(root.innerHTML).toBe(original);
+});
+it("普通组件允许左右对齐，垂直对齐明确需要画布", () => {
+  setup(
+    '<section><section id="a" style="width:120px"><p>文字</p></section></section>',
+  );
+  e.align([id("#a")], "right");
+  expect(root.querySelector<HTMLElement>("#a")!.style.marginLeft).toBe("auto");
+  expect(root.querySelector<HTMLElement>("#a")!.style.marginRight).toBe("0px");
+  expect(e.alignmentCapability([id("#a")], "top").allowed).toBe(false);
+  expect(() => e.align([id("#a")], "top")).toThrow("垂直对齐");
+  e.undo();
+  expect(root.querySelector<HTMLElement>("#a")!.style.marginLeft).toBe("");
+});
+it("撤销重做后保留同一结构的选择，并可继续编辑", () => {
+  const current = id("#a");
+  e.style([current], { backgroundColor: "#e5c598" });
+  const restored = e.undoSelection([current]);
+  expect(restored).toHaveLength(1);
+  expect(e.element(restored[0])!.id).toBe("a");
+  expect(e.element(restored[0])!.style.backgroundColor).toBe("");
+  const redone = e.undoSelection(restored, true);
+  expect(e.element(redone[0])!.style.backgroundColor).toBe(
+    "rgb(229, 197, 152)",
+  );
 });
